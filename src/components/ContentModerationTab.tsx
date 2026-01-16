@@ -5,6 +5,7 @@ import {
   IPopularItemFetched,
   IFeaturedItemFetched,
   IDiscountFetched,
+  IRestaurantFetched,
 } from "../../types/types";
 import { fileUrl, validateEnv } from "@/utils/appwrite";
 import toast from "react-hot-toast";
@@ -57,10 +58,12 @@ import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-
 type ContentType = "menu" | "popular" | "featured" | "discount";
-type ContentItem = IMenuItemFetched | IPopularItemFetched | IFeaturedItemFetched | IDiscountFetched;
-
+type ContentItem =
+  | IMenuItemFetched
+  | IPopularItemFetched
+  | IFeaturedItemFetched
+  | IDiscountFetched;
 // ItemRow component for desktop view (renders <tr>)
 const ItemRow = ({
   item,
@@ -79,10 +82,11 @@ const ItemRow = ({
   const restaurantId = isDiscount
     ? (item as IDiscountFetched).restaurantId
     : "restaurantId" in item
-      ? item.restaurantId
-      : (item as any).restaurant || "";
-  const { restaurant, loading, error } = useRestaurantById(restaurantId || null);
-
+    ? item.restaurantId
+    : (item as any).restaurant || "";
+  const { restaurant, loading, error } = useRestaurantById(
+    restaurantId || null
+  );
   const getTimeLeft = (endDate: string) => {
     const now = new Date();
     const end = new Date(endDate);
@@ -92,7 +96,6 @@ const ItemRow = ({
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     return `${days}d ${hours}h left`;
   };
-
   const getApprovalBadge = (isApproved: boolean | undefined) => {
     if (isApproved) {
       return (
@@ -109,7 +112,6 @@ const ItemRow = ({
       </span>
     );
   };
-
   // Common content for both desktop and mobile views
   const renderContent = () => (
     <div className="flex items-center gap-3">
@@ -117,7 +119,7 @@ const ItemRow = ({
         {item.image ? (
           <Image
             src={fileUrl(getBucketId(activeContentTab), item.image as string)}
-            alt={isDiscount ? (item as IDiscountFetched).title : item.name}
+            alt={"title" in item ? item.title : item.name}
             className="w-full h-full object-cover"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
@@ -139,11 +141,9 @@ const ItemRow = ({
       </div>
       <div>
         <p className="font-medium text-gray-900 dark:text-gray-100">
-          {isDiscount ? (item as IDiscountFetched).title : item.name}
+          {"title" in item ? item.title : item.name}
         </p>
-        <p className="text-sm text-gray-500 line-clamp-2">
-          {isDiscount ? (item as IDiscountFetched).description : item.description}
-        </p>
+        <p className="text-sm text-gray-500 line-clamp-2">{item.description}</p>
         {restaurantId && (
           <div className="flex items-center gap-2 mt-1.5 text-xs text-orange-700 dark:text-orange-300">
             <Utensils className="w-3 h-3" />
@@ -159,7 +159,6 @@ const ItemRow = ({
       </div>
     </div>
   );
-
   const renderDetails = () => (
     <div className="text-sm text-gray-500">
       {!isDiscount ? (
@@ -168,21 +167,39 @@ const ItemRow = ({
             <span className="font-medium">Category:</span>
             <span
               className={`px-2 py-1 rounded-full text-xs ${
-                item.category === "veg" || item.category === "Vegetarian"
+                (
+                  item as
+                    | IMenuItemFetched
+                    | IPopularItemFetched
+                    | IFeaturedItemFetched
+                ).category === "veg" ||
+                (
+                  item as
+                    | IMenuItemFetched
+                    | IPopularItemFetched
+                    | IFeaturedItemFetched
+                ).category === "Vegetarian"
                   ? "bg-green-100 text-green-800"
                   : "bg-red-100 text-red-800"
               }`}
             >
-              {item.category}
+              {
+                (
+                  item as
+                    | IMenuItemFetched
+                    | IPopularItemFetched
+                    | IFeaturedItemFetched
+                ).category
+              }
             </span>
           </p>
-          {("cookTime" in item) && (
+          {"cookTime" in item && (
             <p className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {item.cookTime}
             </p>
           )}
-          {("cookingTime" in item) && (
+          {"cookingTime" in item && (
             <p className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {item.cookingTime}
@@ -205,17 +222,29 @@ const ItemRow = ({
       )}
     </div>
   );
-
   const renderPrice = () => (
     <div>
       {!isDiscount ? (
         <>
-          <p className="font-bold text-orange-600">₦{item.price}</p>
-          {item.originalPrice && item.originalPrice !== item.price && (
-            <p className="text-sm text-gray-500 line-through">
-              ₦{item.originalPrice}
-            </p>
-          )}
+          <p className="font-bold text-orange-600">
+            ₦
+            {
+              (
+                item as
+                  | IMenuItemFetched
+                  | IPopularItemFetched
+                  | IFeaturedItemFetched
+              ).price
+            }
+          </p>
+          {"originalPrice" in item &&
+            item.originalPrice &&
+            item.originalPrice !==
+              (item as IMenuItemFetched | IPopularItemFetched).price && (
+              <p className="text-sm text-gray-500 line-through">
+                ₦{item.originalPrice}
+              </p>
+            )}
         </>
       ) : (
         <p className="font-bold text-orange-600">
@@ -226,15 +255,18 @@ const ItemRow = ({
       )}
     </div>
   );
-
   const renderRating = () => (
     <>
-      {!isDiscount ? (
+      {!isDiscount && "rating" in item ? (
         <div className="flex items-center gap-1">
           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-          <span className="text-sm font-medium">{item.rating}</span>
-          {("reviewCount" in item) && (
-            <span className="text-xs text-gray-500">({item.reviewCount})</span>
+          <span className="text-sm font-medium">
+            {(item as IPopularItemFetched | IFeaturedItemFetched).rating}
+          </span>
+          {"reviewCount" in item && (
+            <span className="text-xs text-gray-500">
+              ({(item as IPopularItemFetched).reviewCount})
+            </span>
           )}
         </div>
       ) : (
@@ -242,7 +274,6 @@ const ItemRow = ({
       )}
     </>
   );
-
   const renderActions = () => (
     <div className="flex gap-2">
       <Button
@@ -285,7 +316,6 @@ const ItemRow = ({
       </button>
     </div>
   );
-
   return (
     <tr className="border-b border-gray-100 dark:border-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition">
       <td className="py-4 px-6">{renderContent()}</td>
@@ -297,7 +327,6 @@ const ItemRow = ({
     </tr>
   );
 };
-
 // MobileItem component for mobile view (renders <div>)
 const MobileItem = ({
   item,
@@ -316,10 +345,11 @@ const MobileItem = ({
   const restaurantId = isDiscount
     ? (item as IDiscountFetched).restaurantId
     : "restaurantId" in item
-      ? item.restaurantId
-      : (item as any).restaurant || "";
-  const { restaurant, loading, error } = useRestaurantById(restaurantId || null);
-
+    ? item.restaurantId
+    : (item as any).restaurant || "";
+  const { restaurant, loading, error } = useRestaurantById(
+    restaurantId || null
+  );
   const getTimeLeft = (endDate: string) => {
     const now = new Date();
     const end = new Date(endDate);
@@ -329,7 +359,6 @@ const MobileItem = ({
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     return `${days}d ${hours}h left`;
   };
-
   const getApprovalBadge = (isApproved: boolean | undefined) => {
     if (isApproved) {
       return (
@@ -346,7 +375,6 @@ const MobileItem = ({
       </span>
     );
   };
-
   return (
     <div className="lg:hidden bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-4">
       <div className="flex gap-3 mb-3">
@@ -354,7 +382,7 @@ const MobileItem = ({
           {item.image ? (
             <Image
               src={fileUrl(getBucketId(activeContentTab), item.image as string)}
-              alt={isDiscount ? (item as IDiscountFetched).title : item.name}
+              alt={"title" in item ? item.title : item.name}
               className="w-full h-full object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
@@ -375,10 +403,10 @@ const MobileItem = ({
         </div>
         <div className="flex-1">
           <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-            {isDiscount ? (item as IDiscountFetched).title : item.name}
+            {"title" in item ? item.title : item.name}
           </h3>
           <p className="text-sm text-gray-500 mb-2 line-clamp-2">
-            {isDiscount ? (item as IDiscountFetched).description : item.description}
+            {item.description}
           </p>
           {restaurantId && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-orange-700 dark:text-orange-300">
@@ -396,19 +424,34 @@ const MobileItem = ({
             <div className="flex items-center gap-2">
               <span className="font-bold text-orange-600">
                 {!isDiscount
-                  ? `₦${item.price}`
-                  : `${(item as IDiscountFetched).discountType} ${(item as IDiscountFetched).discountValue}`}
+                  ? `₦${
+                      (
+                        item as
+                          | IMenuItemFetched
+                          | IPopularItemFetched
+                          | IFeaturedItemFetched
+                      ).price
+                    }`
+                  : `${(item as IDiscountFetched).discountType} ${
+                      (item as IDiscountFetched).discountValue
+                    }`}
               </span>
-              {!isDiscount && item.originalPrice && item.originalPrice !== item.price && (
-                <span className="text-sm text-gray-500 line-through">
-                  ₦{item.originalPrice}
-                </span>
-              )}
+              {!isDiscount &&
+                "originalPrice" in item &&
+                item.originalPrice &&
+                item.originalPrice !==
+                  (item as IMenuItemFetched | IPopularItemFetched).price && (
+                  <span className="text-sm text-gray-500 line-through">
+                    ₦{item.originalPrice}
+                  </span>
+                )}
             </div>
-            {!isDiscount ? (
+            {!isDiscount && "rating" in item ? (
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-medium">{item.rating}</span>
+                <span className="text-sm font-medium">
+                  {(item as IPopularItemFetched | IFeaturedItemFetched).rating}
+                </span>
               </div>
             ) : (
               <span className="text-sm text-gray-500">N/A</span>
@@ -416,23 +459,39 @@ const MobileItem = ({
           </div>
         </div>
       </div>
-
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span
             className={`px-2 py-1 rounded-full text-xs ${
               !isDiscount
-                ? item.category === "veg" || item.category === "Vegetarian"
+                ? (
+                    item as
+                      | IMenuItemFetched
+                      | IPopularItemFetched
+                      | IFeaturedItemFetched
+                  ).category === "veg" ||
+                  (
+                    item as
+                      | IMenuItemFetched
+                      | IPopularItemFetched
+                      | IFeaturedItemFetched
+                  ).category === "Vegetarian"
                   ? "bg-green-100 text-green-800"
                   : "bg-red-100 text-red-800"
                 : "bg-blue-100 text-blue-800"
             }`}
           >
-            {!isDiscount ? item.category : (item as IDiscountFetched).appliesTo}
+            {!isDiscount
+              ? (
+                  item as
+                    | IMenuItemFetched
+                    | IPopularItemFetched
+                    | IFeaturedItemFetched
+                ).category
+              : (item as IDiscountFetched).appliesTo}
           </span>
           {getApprovalBadge(item.isApproved)}
         </div>
-
         <div className="flex gap-2">
           <Button
             onClick={() => handleApproval(item.$id, true)}
@@ -477,10 +536,10 @@ const MobileItem = ({
     </div>
   );
 };
-
 // Helper function to get bucket ID
 const getBucketId = (activeContentTab: ContentType): string => {
-  const { popularBucketId, menuBucketId, featuredBucketId, discountBucketId } = validateEnv();
+  const { popularBucketId, menuBucketId, featuredBucketId, discountBucketId } =
+    validateEnv();
   switch (activeContentTab) {
     case "menu":
       return menuBucketId;
@@ -494,22 +553,24 @@ const getBucketId = (activeContentTab: ContentType): string => {
       return "";
   }
 };
-
 export default function ContentModerationTab() {
   // State management
   const [activeContentTab, setActiveContentTab] = useState<ContentType>("menu");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [approvalFilter, setApprovalFilter] = useState<"all" | "approved" | "pending">("all");
+  const [approvalFilter, setApprovalFilter] = useState<
+    "all" | "approved" | "pending"
+  >("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const dispatch = useDispatch<AppDispatch>();
-  const { featuredItems } = useSelector((state: RootState) => state.featuredItem);
+  const { featuredItems } = useSelector(
+    (state: RootState) => state.featuredItem
+  );
   const { menuItems } = useSelector((state: RootState) => state.menuItem);
   const { popularItems } = useSelector((state: RootState) => state.popularItem);
   const { discounts } = useSelector((state: RootState) => state.discounts);
-
   // Edit/Delete states
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -519,37 +580,40 @@ export default function ContentModerationTab() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [restaurantName, setRestaurantName] = useState<string>("");
-
   // Memoized getRestaurantName
   const getRestaurantName = useCallback(
     async (restaurantId: string, dispatch: AppDispatch): Promise<string> => {
       try {
-        const response = await dispatch(getAsyncRestaurantById(restaurantId)).unwrap();
+        const response = await dispatch(
+          getAsyncRestaurantById(restaurantId)
+        ).unwrap();
         return response.name || "Unknown restaurant";
       } catch (error) {
-        console.error(error instanceof Error ? error.message : "Could not fetch restaurant");
+        console.error(
+          error instanceof Error ? error.message : "Could not fetch restaurant"
+        );
         return "Unknown restaurant";
       }
     },
     []
   );
-
   useEffect(() => {
     if (editFormData.restaurantId && showEditModal) {
       const fetchName = async () => {
-        const name = await getRestaurantName(editFormData.restaurantId, dispatch);
+        const name = await getRestaurantName(
+          editFormData.restaurantId,
+          dispatch
+        );
         setRestaurantName(name);
       };
       fetchName();
     }
   }, [editFormData.restaurantId, showEditModal, getRestaurantName, dispatch]);
-
   // Effect to fetch data when tab changes
   useEffect(() => {
     setCurrentPage(1);
     setError(null);
     setLoading(true);
-
     let action;
     switch (activeContentTab) {
       case "menu":
@@ -568,7 +632,6 @@ export default function ContentModerationTab() {
         setLoading(false);
         return;
     }
-
     dispatch(action as any)
       .then(() => setLoading(false))
       .catch((err: any) => {
@@ -576,32 +639,40 @@ export default function ContentModerationTab() {
         setLoading(false);
       });
   }, [activeContentTab, dispatch]);
-
   // Approval handler
   const handleApproval = async (itemId: string, isApproved: boolean) => {
     try {
       setIsUpdating(true);
       let updateData = { isApproved };
-
       let action;
       switch (activeContentTab) {
         case "menu":
-          action = updateApprovalAsyncMenuItem({ itemId, isApproved: updateData.isApproved });
+          action = updateApprovalAsyncMenuItem({
+            itemId,
+            isApproved: updateData.isApproved,
+          });
           break;
         case "popular":
-          action = updateApprovalAsyncPopularItem({ itemId, isApproved: updateData.isApproved });
+          action = updateApprovalAsyncPopularItem({
+            itemId,
+            isApproved: updateData.isApproved,
+          });
           break;
         case "featured":
-          action = updateApprovalAsyncFeaturedItem({ itemId, isApproved: updateData.isApproved });
+          action = updateApprovalAsyncFeaturedItem({
+            itemId,
+            isApproved: updateData.isApproved,
+          });
           break;
         case "discount":
           action = updateAsyncDiscount({ id: itemId, data: updateData });
           break;
       }
-
       if (action) {
         await dispatch(action as any).unwrap();
-        toast.success(`Item ${isApproved ? "approved" : "rejected"} successfully`);
+        toast.success(
+          `Item ${isApproved ? "approved" : "rejected"} successfully`
+        );
       }
     } catch (error) {
       console.error("Error updating approval status:", error);
@@ -610,69 +681,84 @@ export default function ContentModerationTab() {
       setIsUpdating(false);
     }
   };
-
   // Edit handler
   const handleEdit = (item: ContentItem) => {
     setSelectedItem(item);
-    const commonData = {
-      name: item.name,
-      description: item.description || "",
-      price: item.price,
-      rating: item.rating,
-      category: item.category,
-      restaurantId: "restaurantId" in item ? item.restaurantId : (item as any).restaurant || "",
-      isApproved: item.isApproved,
-    };
-    let formData: any = { ...commonData };
-    switch (activeContentTab) {
-      case "menu":
-        formData = {
-          ...formData,
-          originalPrice: (item as IMenuItemFetched).originalPrice || "",
-          cookTime: (item as IMenuItemFetched).cookTime || "",
-        };
-        break;
-      case "popular":
-        formData = {
-          ...formData,
-          originalPrice: (item as IPopularItemFetched).originalPrice || "",
-          cookingTime: (item as IPopularItemFetched).cookingTime || "",
-          reviewCount: "reviewCount" in item ? (item as IPopularItemFetched).reviewCount : 0,
-          isPopular: "isPopular" in item ? (item as IPopularItemFetched).isPopular : false,
-          discount: "discount" in item ? (item as IPopularItemFetched).discount : "",
-        };
-        break;
-      case "featured":
-        break;
-      case "discount":
-        formData = {
-          title: (item as IDiscountFetched).title,
-          description: (item as IDiscountFetched).description,
-          discountType: (item as IDiscountFetched).discountType,
-          discountValue: (item as IDiscountFetched).discountValue,
-          originalPrice: (item as IDiscountFetched).originalPrice,
-          discountedPrice: (item as IDiscountFetched).discountedPrice,
-          validFrom: (item as IDiscountFetched).validFrom,
-          validTo: (item as IDiscountFetched).validTo,
-          minOrderValue: (item as IDiscountFetched).minOrderValue,
-          maxUses: (item as IDiscountFetched).maxUses,
-          code: (item as IDiscountFetched).code,
-          appliesTo: (item as IDiscountFetched).appliesTo,
-          targetId: (item as IDiscountFetched).targetId,
-          isActive: (item as IDiscountFetched).isActive,
-          isApproved: (item as IDiscountFetched).isApproved,
-          restaurantId: (item as IDiscountFetched).restaurantId,
-          extras: (item as IDiscountFetched).extras,
-        };
-        break;
-      default:
-        break;
+    let formData: any = {};
+    if (activeContentTab === "discount") {
+      const discountItem = item as IDiscountFetched;
+      formData = {
+        title: discountItem.title,
+        description: discountItem.description,
+        discountType: discountItem.discountType,
+        discountValue: discountItem.discountValue,
+        originalPrice: discountItem.originalPrice,
+        discountedPrice: discountItem.discountedPrice,
+        validFrom: discountItem.validFrom,
+        validTo: discountItem.validTo,
+        minOrderValue: discountItem.minOrderValue,
+        maxUses: discountItem.maxUses,
+        code: discountItem.code,
+        appliesTo: discountItem.appliesTo,
+        targetId: discountItem.targetId,
+        isActive: discountItem.isActive,
+        isApproved: discountItem.isApproved,
+        restaurantId: discountItem.restaurantId,
+        extras: discountItem.extras,
+      };
+    } else {
+      const otherItem = item as
+        | IMenuItemFetched
+        | IPopularItemFetched
+        | IFeaturedItemFetched;
+      const commonData = {
+        name: otherItem.name,
+        description: otherItem.description || "",
+        price: otherItem.price,
+        rating: "rating" in otherItem ? otherItem.rating : undefined,
+        category: otherItem.category,
+        restaurantId: otherItem.restaurantId,
+        isApproved: otherItem.isApproved,
+      };
+      formData = { ...commonData };
+      switch (activeContentTab) {
+        case "menu":
+          formData = {
+            ...formData,
+            originalPrice: (otherItem as IMenuItemFetched).originalPrice || "",
+            cookTime: (otherItem as IMenuItemFetched).cookTime || "",
+          };
+          break;
+        case "popular":
+          formData = {
+            ...formData,
+            originalPrice:
+              (otherItem as IPopularItemFetched).originalPrice || "",
+            cookingTime: (otherItem as IPopularItemFetched).cookingTime || "",
+            reviewCount:
+              "reviewCount" in otherItem
+                ? (otherItem as IPopularItemFetched).reviewCount
+                : 0,
+            isPopular:
+              "isPopular" in otherItem
+                ? (otherItem as IPopularItemFetched).isPopular
+                : false,
+            discount:
+              "discount" in otherItem
+                ? (otherItem as IPopularItemFetched).discount
+                : "",
+          };
+          break;
+        case "featured":
+          break;
+        default:
+          break;
+      }
     }
     setEditFormData(formData);
     setNewImage(null);
     setShowEditModal(true);
   };
-
   // Handle update
   const handleUpdate = async () => {
     if (!selectedItem) return;
@@ -703,7 +789,10 @@ export default function ContentModerationTab() {
             price: editFormData.price,
             originalPrice: editFormData.originalPrice,
             rating: parseFloat(editFormData.rating),
-            reviewCount: parseInt(editFormData.reviewCount?.toString() || "0", 10),
+            reviewCount: parseInt(
+              editFormData.reviewCount?.toString() || "0",
+              10
+            ),
             category: editFormData.category,
             cookingTime: editFormData.cookingTime,
             isPopular: editFormData.isPopular,
@@ -711,7 +800,11 @@ export default function ContentModerationTab() {
             restaurantId: editFormData.restaurantId,
             isApproved: editFormData.isApproved,
           };
-          action = updateAsyncPopularItem({ itemId, data: updateData, newImage });
+          action = updateAsyncPopularItem({
+            itemId,
+            data: updateData,
+            newImage,
+          });
           break;
         case "featured":
           updateData = {
@@ -723,14 +816,20 @@ export default function ContentModerationTab() {
             restaurantId: editFormData.restaurantId,
             isApproved: editFormData.isApproved,
           };
-          action = updateAsyncFeaturedItem({ itemId, data: updateData, newImage });
+          action = updateAsyncFeaturedItem({
+            itemId,
+            data: updateData,
+            newImage,
+          });
           break;
         case "discount":
           updateData = {
             title: editFormData.title,
             description: editFormData.description,
             discountType: editFormData.discountType,
-            discountValue: parseFloat(editFormData.discountValue?.toString() || "0"),
+            discountValue: parseFloat(
+              editFormData.discountValue?.toString() || "0"
+            ),
             originalPrice: editFormData.originalPrice
               ? parseFloat(editFormData.originalPrice.toString())
               : undefined,
@@ -742,7 +841,9 @@ export default function ContentModerationTab() {
             minOrderValue: editFormData.minOrderValue
               ? parseFloat(editFormData.minOrderValue.toString())
               : undefined,
-            maxUses: editFormData.maxUses ? parseInt(editFormData.maxUses.toString()) : undefined,
+            maxUses: editFormData.maxUses
+              ? parseInt(editFormData.maxUses.toString())
+              : undefined,
             code: editFormData.code,
             appliesTo: editFormData.appliesTo,
             targetId: editFormData.targetId,
@@ -751,24 +852,25 @@ export default function ContentModerationTab() {
             restaurantId: editFormData.restaurantId,
             extras: editFormData.extras,
           };
-          action = updateAsyncDiscount({ id: itemId, data: updateData, imageFile: newImage || null });
+          action = updateAsyncDiscount({
+            id: itemId,
+            data: updateData,
+            imageFile: newImage || null,
+          });
           break;
       }
-
       if (action) {
         await dispatch(action as any).unwrap();
         toast.success("Item updated successfully");
         setShowEditModal(false);
         dispatch(
-          (
-            activeContentTab === "menu"
-              ? listAsyncMenusItem()
-              : activeContentTab === "popular"
-              ? listAsyncPopularItems()
-              : activeContentTab === "featured"
-              ? listAsyncFeaturedItems()
-              : listAsyncDiscounts()
-          ) as any
+          (activeContentTab === "menu"
+            ? listAsyncMenusItem()
+            : activeContentTab === "popular"
+            ? listAsyncPopularItems()
+            : activeContentTab === "featured"
+            ? listAsyncFeaturedItems()
+            : listAsyncDiscounts()) as any
         );
       }
     } catch (error) {
@@ -777,48 +879,51 @@ export default function ContentModerationTab() {
       setIsUpdating(false);
     }
   };
-
   // Delete handler
   const handleDeleteClick = (item: ContentItem) => {
     setSelectedItem(item);
     setShowDeleteModal(true);
   };
-
   const confirmDelete = async () => {
     if (!selectedItem) return;
-
     try {
       setIsDeleting(true);
       let action;
       switch (activeContentTab) {
         case "menu":
-          action = deleteAsyncMenuItem({ itemId: selectedItem.$id, imageId: selectedItem.image as string });
+          action = deleteAsyncMenuItem({
+            itemId: selectedItem.$id,
+            imageId: selectedItem.image as string,
+          });
           break;
         case "popular":
-          action = deleteAsyncPopularItem({ itemId: selectedItem.$id, imageId: selectedItem.image as string });
+          action = deleteAsyncPopularItem({
+            itemId: selectedItem.$id,
+            imageId: selectedItem.image as string,
+          });
           break;
         case "featured":
-          action = deleteAsyncFeaturedItem({ itemId: selectedItem.$id, imageId: selectedItem.image as string });
+          action = deleteAsyncFeaturedItem({
+            itemId: selectedItem.$id,
+            imageId: selectedItem.image as string,
+          });
           break;
         case "discount":
           action = deleteAsyncDiscount(selectedItem.$id);
           break;
       }
-
       if (action) {
         await dispatch(action as any).unwrap();
         toast.success("Item deleted successfully");
         setShowDeleteModal(false);
         dispatch(
-          (
-            activeContentTab === "menu"
-              ? listAsyncMenusItem()
-              : activeContentTab === "popular"
-              ? listAsyncPopularItems()
-              : activeContentTab === "featured"
-              ? listAsyncFeaturedItems()
-              : listAsyncDiscounts()
-          ) as any
+          (activeContentTab === "menu"
+            ? listAsyncMenusItem()
+            : activeContentTab === "popular"
+            ? listAsyncPopularItems()
+            : activeContentTab === "featured"
+            ? listAsyncFeaturedItems()
+            : listAsyncDiscounts()) as any
         );
       }
     } catch (error) {
@@ -827,7 +932,6 @@ export default function ContentModerationTab() {
       setIsDeleting(false);
     }
   };
-
   // Get current items based on active tab
   const getCurrentItems = (): ContentItem[] => {
     switch (activeContentTab) {
@@ -843,27 +947,22 @@ export default function ContentModerationTab() {
         return [];
     }
   };
-
   // Filter items
   const filteredItems = getCurrentItems().filter((item) => {
-    const itemName = activeContentTab === "discount" ? (item as IDiscountFetched).title : item.name;
+    const itemName = "title" in item ? item.title : item.name;
     const matchesSearch =
       itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.description || "").toLowerCase().includes(searchTerm.toLowerCase());
-
     const matchesApproval =
       approvalFilter === "all" ||
       (approvalFilter === "approved" && item.isApproved) ||
       (approvalFilter === "pending" && !item.isApproved);
-
     return matchesSearch && matchesApproval;
   });
-
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
   const getTabIcon = (type: ContentType) => {
     switch (type) {
       case "menu":
@@ -878,17 +977,18 @@ export default function ContentModerationTab() {
         return <Package className="w-4 h-4" />;
     }
   };
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleEditChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
   };
-
   const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       setNewImage(e.target.files[0]);
     }
   };
-
   const getTimeLeft = (endDate: string) => {
     const now = new Date();
     const end = new Date(endDate);
@@ -898,32 +998,31 @@ export default function ContentModerationTab() {
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     return `${days}d ${hours}h left`;
   };
-
   return (
     <>
       <div className="mb-6">
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
           Content Moderation
         </h2>
-
         {/* Content Type Tabs */}
         <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg mb-6">
-          {(["menu", "popular", "featured", "discount"] as ContentType[]).map((type) => (
-            <button
-              key={type}
-              onClick={() => setActiveContentTab(type)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                activeContentTab === type
-                  ? "bg-white dark:bg-gray-700 text-orange-600 shadow-sm"
-                  : "text-gray-600 dark:text-gray-300 hover:text-orange-600"
-              }`}
-            >
-              {getTabIcon(type)}
-              {type.charAt(0).toUpperCase() + type.slice(1)} Items
-            </button>
-          ))}
+          {(["menu", "popular", "featured", "discount"] as ContentType[]).map(
+            (type) => (
+              <button
+                key={type}
+                onClick={() => setActiveContentTab(type)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+                  activeContentTab === type
+                    ? "bg-white dark:bg-gray-700 text-orange-600 shadow-sm"
+                    : "text-gray-600 dark:text-gray-300 hover:text-orange-600"
+                }`}
+              >
+                {getTabIcon(type)}
+                {type.charAt(0).toUpperCase() + type.slice(1)} Items
+              </button>
+            )
+          )}
         </div>
-
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="relative flex-1 sm:flex-none">
@@ -946,7 +1045,11 @@ export default function ContentModerationTab() {
             />
             <select
               value={approvalFilter}
-              onChange={(e) => setApprovalFilter(e.target.value as "all" | "approved" | "pending")}
+              onChange={(e) =>
+                setApprovalFilter(
+                  e.target.value as "all" | "approved" | "pending"
+                )
+              }
               className="w-full pl-10 pr-8 py-2 rounded-lg border border-orange-300 focus:ring-2 focus:ring-orange-400 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 appearance-none"
             >
               <option value="all">All Items</option>
@@ -960,7 +1063,6 @@ export default function ContentModerationTab() {
           </div>
         </div>
       </div>
-
       {/* Content */}
       {loading ? (
         <div className="space-y-4">
@@ -1033,7 +1135,6 @@ export default function ContentModerationTab() {
               </tbody>
             </table>
           </div>
-
           {/* Mobile View */}
           <div className="lg:hidden space-y-4">
             {paginatedItems.length > 0 ? (
@@ -1053,7 +1154,6 @@ export default function ContentModerationTab() {
               </div>
             )}
           </div>
-
           {/* Pagination */}
           {filteredItems.length > itemsPerPage && (
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-6">
@@ -1065,15 +1165,21 @@ export default function ContentModerationTab() {
                 Previous
               </button>
               <span className="text-gray-600 dark:text-gray-300 text-sm text-center">
-                Page {currentPage} of {Math.ceil(filteredItems.length / itemsPerPage)}
+                Page {currentPage} of{" "}
+                {Math.ceil(filteredItems.length / itemsPerPage)}
               </span>
               <button
                 onClick={() =>
                   setCurrentPage((prev) =>
-                    Math.min(prev + 1, Math.ceil(filteredItems.length / itemsPerPage))
+                    Math.min(
+                      prev + 1,
+                      Math.ceil(filteredItems.length / itemsPerPage)
+                    )
                   )
                 }
-                disabled={currentPage === Math.ceil(filteredItems.length / itemsPerPage)}
+                disabled={
+                  currentPage === Math.ceil(filteredItems.length / itemsPerPage)
+                }
                 className="w-full sm:w-auto px-4 py-2 bg-orange-600 text-white rounded-lg disabled:opacity-50 hover:bg-orange-700 transition text-sm"
               >
                 Next
@@ -1082,7 +1188,6 @@ export default function ContentModerationTab() {
           )}
         </>
       )}
-
       {/* Edit Modal */}
       {showEditModal && selectedItem && (
         <motion.div
@@ -1105,7 +1210,10 @@ export default function ContentModerationTab() {
                   <Edit2 className="w-5 h-5 text-orange-600" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Edit {activeContentTab.charAt(0).toUpperCase() + activeContentTab.slice(1)} Item
+                  Edit{" "}
+                  {activeContentTab.charAt(0).toUpperCase() +
+                    activeContentTab.slice(1)}{" "}
+                  Item
                 </h3>
               </div>
               <Button
@@ -1115,7 +1223,6 @@ export default function ContentModerationTab() {
                 <XCircle className="w-5 h-5 text-gray-500" />
               </Button>
             </div>
-
             <form className="space-y-5">
               {activeContentTab !== "discount" ? (
                 <>
@@ -1124,7 +1231,6 @@ export default function ContentModerationTab() {
                     <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
                       Basic Information
                     </h4>
-
                     <div>
                       <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Item Name
@@ -1137,7 +1243,6 @@ export default function ContentModerationTab() {
                         className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                       />
                     </div>
-
                     <div>
                       <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Description
@@ -1151,7 +1256,6 @@ export default function ContentModerationTab() {
                         className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
                       />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1168,7 +1272,6 @@ export default function ContentModerationTab() {
                           <option value="non-veg">Non-Vegetarian</option>
                         </select>
                       </div>
-
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Rating
@@ -1187,11 +1290,11 @@ export default function ContentModerationTab() {
                       </div>
                     </div>
                   </div>
-
                   {/* Pricing Section */}
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Pricing</h4>
-
+                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+                      Pricing
+                    </h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1206,79 +1309,85 @@ export default function ContentModerationTab() {
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         />
                       </div>
-
-                      {("originalPrice" in editFormData && editFormData.originalPrice !== undefined) && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Original Price (₦)
-                          </label>
-                          <input
-                            name="originalPrice"
-                            type="number"
-                            value={editFormData.originalPrice}
-                            onChange={handleEditChange}
-                            placeholder="0.00"
-                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          />
-                        </div>
-                      )}
-
-                      {("discount" in editFormData && editFormData.discount !== undefined) && (
-                        <div>
-                          <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Discount
-                          </Label>
-                          <Input
-                            name="discount"
-                            value={editFormData.discount}
-                            onChange={handleEditChange}
-                            placeholder="e.g., 20% OFF"
-                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          />
-                        </div>
-                      )}
+                      {"originalPrice" in editFormData &&
+                        editFormData.originalPrice !== undefined && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Original Price (₦)
+                            </label>
+                            <input
+                              name="originalPrice"
+                              type="number"
+                              value={editFormData.originalPrice}
+                              onChange={handleEditChange}
+                              placeholder="0.00"
+                              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+                        )}
+                      {"discount" in editFormData &&
+                        editFormData.discount !== undefined && (
+                          <div>
+                            <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Discount
+                            </Label>
+                            <Input
+                              name="discount"
+                              value={editFormData.discount}
+                              onChange={handleEditChange}
+                              placeholder="e.g., 20% OFF"
+                              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+                        )}
                     </div>
                   </div>
-
                   {/* Additional Details Section */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
                       Additional Details
                     </h4>
-
                     <div className="grid grid-cols-2 gap-4">
-                      {("cookTime" in editFormData || "cookingTime" in editFormData) && (
+                      {("cookTime" in editFormData ||
+                        "cookingTime" in editFormData) && (
                         <div>
                           <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Cooking Time
                           </Label>
                           <Input
-                            name={"cookTime" in editFormData ? "cookTime" : "cookingTime"}
-                            value={editFormData.cookTime || editFormData.cookingTime || ""}
+                            name={
+                              "cookTime" in editFormData
+                                ? "cookTime"
+                                : "cookingTime"
+                            }
+                            value={
+                              editFormData.cookTime ||
+                              editFormData.cookingTime ||
+                              ""
+                            }
                             onChange={handleEditChange}
                             placeholder="e.g., 20-25 mins"
                             className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                           />
                         </div>
                       )}
-
-                      {("reviewCount" in editFormData && editFormData.reviewCount !== undefined) && (
-                        <div>
-                          <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Review Count
-                          </Label>
-                          <input
-                            name="reviewCount"
-                            type="number"
-                            min="0"
-                            value={editFormData.reviewCount}
-                            onChange={handleEditChange}
-                            placeholder="0"
-                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          />
-                        </div>
-                      )}
-
+                      {"reviewCount" in editFormData &&
+                        editFormData.reviewCount !== undefined && (
+                          <div>
+                            <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Review Count
+                            </Label>
+                            <input
+                              name="reviewCount"
+                              type="number"
+                              min="0"
+                              value={editFormData.reviewCount}
+                              onChange={handleEditChange}
+                              placeholder="0"
+                              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+                        )}
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Restaurant
@@ -1303,7 +1412,6 @@ export default function ContentModerationTab() {
                     <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
                       Basic Information
                     </h4>
-
                     <div>
                       <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Title
@@ -1316,7 +1424,6 @@ export default function ContentModerationTab() {
                         className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                       />
                     </div>
-
                     <div>
                       <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Description
@@ -1330,7 +1437,6 @@ export default function ContentModerationTab() {
                         className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
                       />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1346,7 +1452,6 @@ export default function ContentModerationTab() {
                           <option value="fixed">Fixed Amount</option>
                         </select>
                       </div>
-
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Discount Value
@@ -1363,11 +1468,11 @@ export default function ContentModerationTab() {
                       </div>
                     </div>
                   </div>
-
                   {/* Validity Section */}
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Validity</h4>
-
+                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+                      Validity
+                    </h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1381,7 +1486,6 @@ export default function ContentModerationTab() {
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         />
                       </div>
-
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Valid To
@@ -1396,11 +1500,11 @@ export default function ContentModerationTab() {
                       </div>
                     </div>
                   </div>
-
                   {/* Scope Section */}
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Scope</h4>
-
+                    <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+                      Scope
+                    </h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1418,7 +1522,6 @@ export default function ContentModerationTab() {
                           <option value="restaurant">Restaurant</option>
                         </select>
                       </div>
-
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Target ID
@@ -1432,7 +1535,6 @@ export default function ContentModerationTab() {
                         />
                       </div>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1446,7 +1548,6 @@ export default function ContentModerationTab() {
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         />
                       </div>
-
                       <div>
                         <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Min Order Value (₦)
@@ -1463,13 +1564,11 @@ export default function ContentModerationTab() {
                       </div>
                     </div>
                   </div>
-
                   {/* Restaurant Section */}
                   <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
                       Restaurant
                     </h4>
-
                     <div>
                       <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Restaurant
@@ -1487,11 +1586,11 @@ export default function ContentModerationTab() {
                   </div>
                 </>
               )}
-
               {/* Image Upload Section */}
               <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Image</h4>
-
+                <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+                  Image
+                </h4>
                 <div>
                   <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Upload New Image (Optional)
@@ -1501,7 +1600,9 @@ export default function ContentModerationTab() {
                       <div className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-orange-400 transition">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                           <ImageIcon className="w-5 h-5" />
-                          <span className="text-sm">{newImage ? newImage.name : "Choose an image"}</span>
+                          <span className="text-sm">
+                            {newImage ? newImage.name : "Choose an image"}
+                          </span>
                         </div>
                       </div>
                       <Input
@@ -1520,11 +1621,11 @@ export default function ContentModerationTab() {
                   )}
                 </div>
               </div>
-
               {/* Approval Status Section */}
               <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">Status</h4>
-
+                <h4 className="text-sm font-semibold text-orange-600 uppercase tracking-wide">
+                  Status
+                </h4>
                 {activeContentTab === "discount" ? (
                   <div className="space-y-4">
                     <Label className="flex items-center gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition">
@@ -1532,7 +1633,12 @@ export default function ContentModerationTab() {
                         type="checkbox"
                         name="isActive"
                         checked={editFormData.isActive}
-                        onChange={(e) => setEditFormData({ ...editFormData, isActive: e.target.checked })}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            isActive: e.target.checked,
+                          })
+                        }
                         className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
                       />
                       <div className="flex-1">
@@ -1544,13 +1650,17 @@ export default function ContentModerationTab() {
                         </p>
                       </div>
                     </Label>
-
                     <Label className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition">
                       <Input
                         type="checkbox"
                         name="isApproved"
                         checked={editFormData.isApproved}
-                        onChange={(e) => setEditFormData({ ...editFormData, isApproved: e.target.checked })}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            isApproved: e.target.checked,
+                          })
+                        }
                         className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
                       />
                       <div className="flex-1">
@@ -1569,7 +1679,12 @@ export default function ContentModerationTab() {
                       type="checkbox"
                       name="isApproved"
                       checked={editFormData.isApproved}
-                      onChange={(e) => setEditFormData({ ...editFormData, isApproved: e.target.checked })}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          isApproved: e.target.checked,
+                        })
+                      }
                       className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
                     />
                     <div className="flex-1">
@@ -1583,7 +1698,6 @@ export default function ContentModerationTab() {
                   </Label>
                 )}
               </div>
-
               {/* Action Buttons */}
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
                 <Button
@@ -1616,7 +1730,6 @@ export default function ContentModerationTab() {
           </motion.div>
         </motion.div>
       )}
-
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <motion.div
@@ -1637,10 +1750,14 @@ export default function ContentModerationTab() {
               Confirm Delete
             </h3>
             <p className="text-gray-700 dark:text-gray-300 mb-6">
-              Are you sure you want to delete this item? This action cannot be undone.
+              Are you sure you want to delete this item? This action cannot be
+              undone.
             </p>
             <div className="flex gap-3 justify-end">
-              <Button onClick={() => setShowDeleteModal(false)} variant="outline">
+              <Button
+                onClick={() => setShowDeleteModal(false)}
+                variant="outline"
+              >
                 Cancel
               </Button>
               <Button

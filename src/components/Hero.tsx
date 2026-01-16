@@ -1,30 +1,31 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useDispatch, useSelector } from 'react-redux';
-import { 
-  X,
-  Clock,
-  Settings
-} from 'lucide-react';
-import { fileUrl, validateEnv, storage, client } from '@/utils/appwrite';
-import { Models } from 'appwrite';
-import toast from 'react-hot-toast';
-import { IRestaurantFetched } from '../../types/types';
-import { AppDispatch, RootState } from '@/state/store';
-import { listAsyncRestaurants } from '@/state/restaurantSlice';
-import { listAsyncLogos } from '@/state/categoryLogosSlice';
-import { useAuth } from '@/context/authContext';
-import CategoryLogoManager from './CategoryLogoManager';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useDispatch, useSelector } from "react-redux";
+import { X, Clock, Settings } from "lucide-react";
+import { fileUrl, validateEnv, storage, client } from "@/utils/appwrite";
+import { Models } from "appwrite";
+import toast from "react-hot-toast";
+import { IRestaurantFetched } from "../../types/types";
+import { AppDispatch, RootState } from "@/state/store";
+import { listAsyncRestaurants } from "@/state/restaurantSlice";
+import { listAsyncLogos } from "@/state/categoryLogosSlice";
+import { useAuth } from "@/context/authContext";
+import CategoryLogoManager from "./CategoryLogoManager";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CategoryItem {
   id: string;
   title: string;
   href: string;
   available: boolean;
-  image?: string; 
+  image?: string;
   icon?: any;
 }
 
@@ -32,9 +33,13 @@ const MiniNavigation = () => {
   const [isClient, setIsClient] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<CategoryItem | IRestaurantFetched | null>(null);
+  const [selectedItem, setSelectedItem] = useState<
+    CategoryItem | IRestaurantFetched | null
+  >(null);
   const dispatch = useDispatch<AppDispatch>();
-  const { restaurants, loading, error } = useSelector((state: RootState) => state.restaurant);
+  const { restaurants, loading, error } = useSelector(
+    (state: RootState) => state.restaurant
+  );
   const { logos } = useSelector((state: RootState) => state.categoryLogos);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -51,9 +56,13 @@ const MiniNavigation = () => {
 
     const channel = `buckets.${categoryLogosBucketId}.files`;
     const unsubscribe = client.subscribe(channel, (payload) => {
-      if (payload.events && payload.events.some(event => 
-        event.startsWith('storage.buckets.') && event.includes('.files')
-      )) {
+      if (
+        payload.events &&
+        payload.events.some(
+          (event) =>
+            event.startsWith("storage.buckets.") && event.includes(".files")
+        )
+      ) {
         dispatch(listAsyncLogos());
       }
     });
@@ -71,29 +80,38 @@ const MiniNavigation = () => {
 
   const mainCategories: CategoryItem[] = [
     {
-      id: 'restaurant',
-      title: 'Restaurant',
-      href: '/menu',
+      id: "restaurant",
+      title: "Restaurant",
+      href: "/menu",
       available: true,
-      image: logos.restaurant ? fileUrl(categoryLogosBucketId, logos.restaurant.$id) : '/shopping_cart.jpg',
+      image: logos.restaurant
+        ? fileUrl(categoryLogosBucketId, logos.restaurant.$id)
+        : "/shopping_cart.jpg",
     },
     {
-      id: 'shops',
-      title: 'Shops',
-      href: '/shops',
+      id: "shops",
+      title: "Shops",
+      href: "/shops",
       available: false,
-      image: logos.shops ? fileUrl(categoryLogosBucketId, logos.shops.$id) : '/home.jpg',
+      image: logos.shops
+        ? fileUrl(categoryLogosBucketId, logos.shops.$id)
+        : "/home.jpg",
     },
     {
-      id: 'pharmacy',
-      title: 'Pharmacy',
-      href: '/pharmacy',
+      id: "pharmacy",
+      title: "Pharmacy",
+      href: "/pharmacy",
       available: false,
-      image: logos.pharmacy ? fileUrl(categoryLogosBucketId, logos.pharmacy.$id) : '/hospital.jpg',
+      image: logos.pharmacy
+        ? fileUrl(categoryLogosBucketId, logos.pharmacy.$id)
+        : "/hospital.jpg",
     },
   ];
 
-  const handleItemClick = (item: CategoryItem | IRestaurantFetched, e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleItemClick = (
+    item: CategoryItem | IRestaurantFetched,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
     setSelectedItem(item);
     setShowComingSoon(true);
@@ -106,34 +124,63 @@ const MiniNavigation = () => {
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showComingSoon) {
+      if (e.key === "Escape" && showComingSoon) {
         closeModal();
       }
     };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
   }, [showComingSoon]);
 
-  const renderCategoryItem = (item: CategoryItem | IRestaurantFetched, isExploreItem: boolean = false) => {
-    const containerSize = isExploreItem ? 'w-14 h-14 sm:w-16 sm:h-16' : 'w-16 h-16 sm:w-18 sm:h-18';
-    const iconSize = isExploreItem ? 'w-7 h-7 sm:w-8 sm:h-8' : 'w-8 h-8 sm:w-9 sm:h-9';
-    const isRestaurant = '$id' in item;
+  const renderCategoryItem = (
+    item: CategoryItem | IRestaurantFetched,
+    isExploreItem: boolean = false
+  ) => {
+    const isRestaurant = "$id" in item;
+    const isAvailable = isRestaurant ? true : (item as CategoryItem).available;
 
-    const imageUrl = isRestaurant && item.logo 
-      ? fileUrl(restaurantBucketId, item.logo as string)
-      : (item as CategoryItem).image || '/placeholder.jpg';
+    const containerSize = isExploreItem
+      ? "w-14 h-14 sm:w-16 sm:h-16"
+      : "w-16 h-16 sm:w-18 sm:h-18";
+    const iconSize = isExploreItem
+      ? "w-7 h-7 sm:w-8 sm:h-8"
+      : "w-8 h-8 sm:w-9 sm:h-9";
 
-    if (item.available) {
+    const displayName = isRestaurant
+      ? (item as IRestaurantFetched).name
+      : (item as CategoryItem).title;
+
+    const imageUrl =
+      isRestaurant && (item as IRestaurantFetched).logo
+        ? fileUrl(
+            restaurantBucketId,
+            (item as IRestaurantFetched).logo as string
+          )
+        : (item as CategoryItem).image || "/placeholder.jpg";
+
+    const itemKey = isRestaurant
+      ? (item as IRestaurantFetched).$id
+      : (item as CategoryItem).id;
+
+    const itemHref = isRestaurant
+      ? `/restaurant/${(item as IRestaurantFetched).$id}`
+      : (item as CategoryItem).href;
+
+    if (isAvailable) {
       return (
         <Link
-          key={isRestaurant ? item.$id : item.id}
-          href={item.href}
+          key={itemKey}
+          href={itemHref}
           className="group flex flex-col items-center min-w-[100px] sm:min-w-[110px] snap-center transition-transform duration-300 hover:scale-105"
         >
-          <div className={`relative flex items-center justify-center ${containerSize} ${isExploreItem ? 'rounded-full' : 'rounded-2xl'} overflow-hidden bg-gray-100/90 dark:bg-gray-800/90 group-hover:bg-orange-100/40 dark:group-hover:bg-orange-900/40 transition-all duration-300 shadow-md group-hover:shadow-lg ring-1 ring-gray-200/50 dark:ring-gray-700/50`}>
+          <div
+            className={`relative flex items-center justify-center ${containerSize} ${
+              isExploreItem ? "rounded-full" : "rounded-2xl"
+            } overflow-hidden bg-gray-100/90 dark:bg-gray-800/90 group-hover:bg-orange-100/40 dark:group-hover:bg-orange-900/40 transition-all duration-300 shadow-md group-hover:shadow-lg ring-1 ring-gray-200/50 dark:ring-gray-700/50`}
+          >
             <Image
               src={imageUrl}
-              alt={isRestaurant ? item.name : item.title}
+              alt={displayName}
               fill
               sizes="(max-width: 640px) 80px, 100px"
               className="object-cover group-hover:scale-110 transition-transform duration-300"
@@ -142,21 +189,28 @@ const MiniNavigation = () => {
             />
           </div>
           <span className="mt-3 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-300 text-center line-clamp-1">
-            {isRestaurant ? item.name : item.title}
+            {displayName}
           </span>
         </Link>
       );
     } else {
-      const Icon = (item as CategoryItem).icon;
+      // Only unavailable categories reach here
+      const categoryItem = item as CategoryItem;
+      const Icon = categoryItem.icon;
+
       return (
         <button
-          key={isRestaurant ? item.$id : item.id}
+          key={itemKey}
           onClick={(e) => handleItemClick(item, e)}
           type="button"
-          aria-label={`${isRestaurant ? item.name : item.title} - Coming Soon`}
+          aria-label={`${displayName} - Coming Soon`}
           className="group flex flex-col items-center min-w-[100px] sm:min-w-[110px] snap-center transition-transform duration-300 hover:scale-105"
         >
-          <div className={`relative flex items-center justify-center ${containerSize} ${isExploreItem ? 'rounded-full' : 'rounded-2xl'} overflow-hidden bg-gray-100/90 dark:bg-gray-800/90 group-hover:bg-orange-100/40 dark:group-hover:bg-orange-900/40 transition-all duration-300 shadow-md group-hover:shadow-lg ring-1 ring-gray-200/50 dark:ring-gray-700/50`}>
+          <div
+            className={`relative flex items-center justify-center ${containerSize} ${
+              isExploreItem ? "rounded-full" : "rounded-2xl"
+            } overflow-hidden bg-gray-100/90 dark:bg-gray-800/90 group-hover:bg-orange-100/40 dark:group-hover:bg-orange-900/40 transition-all duration-300 shadow-md group-hover:shadow-lg ring-1 ring-gray-200/50 dark:ring-gray-700/50`}
+          >
             {Icon ? (
               <Icon
                 className={`${iconSize} text-gray-600 dark:text-gray-300 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-300 opacity-70 group-hover:opacity-100`}
@@ -164,7 +218,7 @@ const MiniNavigation = () => {
             ) : (
               <Image
                 src={imageUrl}
-                alt={isRestaurant ? item.name : item.title}
+                alt={displayName}
                 fill
                 sizes="(max-width: 640px) 80px, 100px"
                 className="object-cover opacity-70 group-hover:scale-110 group-hover:opacity-100 transition-all duration-300"
@@ -176,7 +230,7 @@ const MiniNavigation = () => {
             </div>
           </div>
           <span className="mt-3 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-300 text-center opacity-70 group-hover:opacity-100 line-clamp-1">
-            {isRestaurant ? item.name : item.title}
+            {displayName}
           </span>
         </button>
       );
@@ -185,21 +239,24 @@ const MiniNavigation = () => {
 
   const ComingSoonModal = () => {
     if (!showComingSoon || !selectedItem) return null;
-    const isRestaurant = '$id' in selectedItem;
-    const imageUrl = isRestaurant && selectedItem.logo 
-      ? fileUrl(restaurantBucketId, selectedItem.logo as string)
-      : (selectedItem as CategoryItem).image || '/placeholder.jpg';
 
-    const Icon = (selectedItem as CategoryItem).icon;
+    // selectedItem is always an unavailable CategoryItem here
+    const categoryItem = selectedItem as CategoryItem;
+    const displayName = categoryItem.title;
+
+    const imageUrl = categoryItem.image || "/placeholder.jpg";
+
+    const Icon = categoryItem.icon;
 
     return (
-      <div 
+      <div
         className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center z-50 p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="coming-soon-title"
+        onClick={closeModal}
       >
-        <div 
+        <div
           className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl ring-1 ring-gray-200/50 dark:ring-gray-800/50"
           onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
         >
@@ -211,17 +268,20 @@ const MiniNavigation = () => {
                 ) : (
                   <Image
                     src={imageUrl}
-                    alt={isRestaurant ? selectedItem.name : selectedItem.title}
+                    alt={displayName}
                     fill
                     className="object-cover"
                     quality={85}
                     priority
-                    sizes='(max-width:768px) 100vw, (max-width:1200px) 50vw, 33vw'
+                    sizes="(max-width:768px) 100vw, (max-width:1200px) 50vw, 33vw"
                   />
                 )}
               </div>
-              <h2 id="coming-soon-title" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {isRestaurant ? selectedItem.name : selectedItem.title}
+              <h2
+                id="coming-soon-title"
+                className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100"
+              >
+                {displayName}
               </h2>
             </div>
             <button
@@ -244,7 +304,7 @@ const MiniNavigation = () => {
                 <>
                   <Image
                     src={imageUrl}
-                    alt={isRestaurant ? selectedItem.name : selectedItem.title}
+                    alt={displayName}
                     fill
                     className="object-cover opacity-80"
                     quality={85}
@@ -259,7 +319,7 @@ const MiniNavigation = () => {
               Coming Soon!
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed px-4">
-              {`We're working hard to bring you ${isRestaurant ? selectedItem.name.toLowerCase() : selectedItem.title.toLowerCase()} services. Stay tuned for updates!`}
+              {`We're working hard to bring you ${displayName.toLowerCase()} services. Stay tuned for updates!`}
             </p>
           </div>
 
@@ -309,12 +369,15 @@ const MiniNavigation = () => {
                 Explore
               </h2>
               {restaurants.length > 0 && (
-                <Link href="/menu" className="text-sm sm:text-base font-semibold text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200">
+                <Link
+                  href="/menu"
+                  className="text-sm sm:text-base font-semibold text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200"
+                >
                   See All
                 </Link>
               )}
             </div>
-            {loading === 'pending' ? (
+            {loading === "pending" ? (
               <div className="flex justify-center items-center h-24">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-orange-500"></div>
               </div>
@@ -324,7 +387,9 @@ const MiniNavigation = () => {
               </p>
             ) : (
               <div className="flex items-center justify-start gap-10 sm:gap-12 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4">
-                {restaurants.filter(r=>r.isPaused !== true).map((restaurant) => renderCategoryItem({ ...restaurant, href: `/restaurant/${restaurant.$id}`, available: true }, true))}
+                {restaurants
+                  .filter((r) => r.isPaused !== true)
+                  .map((restaurant) => renderCategoryItem(restaurant, true))}
               </div>
             )}
           </div>
@@ -334,7 +399,9 @@ const MiniNavigation = () => {
       <Dialog open={showAdminModal} onOpenChange={setShowAdminModal}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">Manage Category Logos</DialogTitle>
+            <DialogTitle className="text-2xl font-bold">
+              Manage Category Logos
+            </DialogTitle>
           </DialogHeader>
           <CategoryLogoManager />
         </DialogContent>

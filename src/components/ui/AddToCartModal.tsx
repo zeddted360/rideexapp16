@@ -85,7 +85,7 @@ const AddToCartModal = () => {
             [Query.equal("$id", item.extras as string[])]
           );
           let fetchedExtras: IFetchedExtras[] =
-            extrasResponse.documents as IFetchedExtras[];
+            extrasResponse.documents as unknown as IFetchedExtras[];
 
           // Then, fetch from packs collection for any pack IDs
           let packsResponse = await databases.listDocuments(
@@ -94,7 +94,7 @@ const AddToCartModal = () => {
             [Query.equal("$id", item.extras as string[])]
           );
           let fetchedPacks: IPackFetched[] =
-            packsResponse.documents as IPackFetched[];
+            packsResponse.documents as unknown as IPackFetched[];
 
           // Combine them
           const combined = [...fetchedExtras, ...fetchedPacks];

@@ -290,7 +290,7 @@ const HistoryClient = () => {
         userCollectionId,
         userId
       );
-      return response as IUserFectched;
+      return response as unknown as IUserFectched;
     } catch (error) {
       console.error("Error fetching user details:", error);
       return null;

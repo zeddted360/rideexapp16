@@ -54,7 +54,7 @@ export const createAsyncOfferItem = createAsyncThunk<
     );
 
     toast.success("Promo offer item created successfully!");
-    return createdDocument as IPromoOfferFetched;
+    return createdDocument as unknown  as IPromoOfferFetched;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     toast.error(`Failed to create promo offer item: ${errorMsg}. Check extras IDs if provided.`);
@@ -77,7 +77,7 @@ export const listAsyncPromoOfferItems = createAsyncThunk<
       promoOfferCollectionId,
       [Query.orderDesc("$createdAt")]
     );
-    return response.documents as IPromoOfferFetched[];
+    return response.documents as unknown as IPromoOfferFetched[];
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     console.error(`Failed to fetch promo offer items: ${errorMsg}`);
@@ -117,7 +117,7 @@ export const updateAsyncOfferItem = createAsyncThunk<
     );
 
     toast.success("Promo offer item updated successfully!");
-    return updatedDocument as IPromoOfferFetched;
+    return updatedDocument as unknown as IPromoOfferFetched;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     toast.error(`Failed to update promo offer item: ${errorMsg}. Check extras IDs if provided.`);
@@ -216,7 +216,7 @@ export const updateApprovalAsyncPromoOfferItem = createAsyncThunk<
 
     const status = isApproved ? "approved" : "rejected";
     toast.success(`Promo offer item ${status} successfully!`);
-    return updatedDocument as IPromoOfferFetched;
+    return updatedDocument as unknown as IPromoOfferFetched;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     toast.error(`Failed to update promo offer item approval: ${errorMsg}`);
@@ -269,7 +269,7 @@ export const togglePausePromoOfferItem = createAsyncThunk<
       );
 
       toast.success(`Offer ${isPaused ? "paused" : "resumed"} successfully!`);
-      return updatedDocument as IPromoOfferFetched;
+      return updatedDocument as unknown as IPromoOfferFetched;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       toast.error(`Failed to toggle pause: ${errorMsg}`);

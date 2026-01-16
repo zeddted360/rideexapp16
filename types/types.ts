@@ -306,7 +306,8 @@ export interface IRiders {
   referralCode?: string;
   refferedBy?: string;
   status: string;
-}
+};
+
 export interface IRidersFetched extends IRiders, Models.Document {}
 
 export interface IDiscount {
@@ -371,3 +372,10 @@ export interface StructuredItem {
   priceAtOrder: number;
   specialInstructions?: string;
 }
+
+export type ContentItem =
+  | IMenuItemFetched
+  | IFeaturedItemFetched
+  | IPopularItemFetched
+  | IDiscountFetched
+  | IPromoOfferFetched;

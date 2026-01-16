@@ -17,7 +17,7 @@ export default function PromotionalBanner() {
         validateEnv().promoOfferCollectionId,
         [Query.orderDesc("$createdAt")]
       );
-      setOffers(response.documents as IPromoOfferFetched[]);
+      setOffers(response.documents as unknown as IPromoOfferFetched[]);
     } catch (err) {
       console.error("Failed to fetch offers:", err);
     } finally {

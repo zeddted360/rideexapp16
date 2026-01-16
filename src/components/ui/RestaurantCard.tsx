@@ -32,7 +32,6 @@ const RestaurantCard = ({ restaurant }: { restaurant: IRestaurantFetched }) => (
         <p className="line-clamp-1 font-medium">{restaurant.category}</p>
         <div className="flex items-center gap-2 sm:gap-4 text-gray-500 dark:text-gray-400 text-xs">
           <span className="truncate">{restaurant.deliveryTime}</span>
-          <span className="truncate">{restaurant.distance}</span>
         </div>
       </div>
     </div>

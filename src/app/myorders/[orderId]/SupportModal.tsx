@@ -67,7 +67,7 @@ const SupportModal: React.FC<SupportModalProps> = ({
   };
 
   const whatsappMessage = `Hello! I need support with my order #${
-    currentOrder.riderCode || currentOrder._id
+    currentOrder.riderCode || currentOrder.$id
   } from ${branchName}.`;
 
   return (
@@ -98,12 +98,12 @@ const SupportModal: React.FC<SupportModalProps> = ({
                 </p>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
-                    {currentOrder.riderCode || currentOrder._id}
+                    {currentOrder.riderCode || currentOrder.$id}
                   </p>
                   <button
                     onClick={() =>
                       copyToClipboard(
-                        currentOrder.riderCode || currentOrder._id,
+                        currentOrder.riderCode || currentOrder.$id,
                         "order"
                       )
                     }
@@ -227,7 +227,7 @@ const SupportModal: React.FC<SupportModalProps> = ({
                 >
                   <Link
                     href={`mailto:${supportEmail}?subject=Support Request - Order ${
-                      currentOrder.riderCode || currentOrder._id
+                      currentOrder.riderCode || currentOrder.$id
                     }`}
                   >
                     Email

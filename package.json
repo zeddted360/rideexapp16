@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "local": "next start",
     "start": "NODE_ENV=production node server.js",
     "lint": "eslint"
   },

@@ -1,20 +1,39 @@
-import { Loader2, XCircle } from 'lucide-react';
-import React, { Dispatch, FC, SetStateAction } from 'react'
-import { IDiscountFetched, IFeaturedItemFetched, IMenuItemFetched, IPopularItemFetched } from '../../../types/types';
+import { Loader2, XCircle } from "lucide-react";
+import React, { Dispatch, FC, SetStateAction } from "react";
+import {
+  IDiscountFetched,
+  IFeaturedItemFetched,
+  IMenuItemFetched,
+  IPopularItemFetched,
+} from "../../../types/types";
 
 interface DeleteConfirmModalProps {
-    setShowDeleteModal:Dispatch<SetStateAction<boolean>>;
-    selectedItem:IMenuItemFetched | IFeaturedItemFetched | IPopularItemFetched | IDiscountFetched;
-    isDeleting:boolean;
-    confirmDelete: () => Promise<void>;
+  setShowDeleteModal: Dispatch<SetStateAction<boolean>>;
+  selectedItem:
+    | IMenuItemFetched
+    | IFeaturedItemFetched
+    | IPopularItemFetched
+    | IDiscountFetched;
+  isDeleting: boolean;
+  confirmDelete: () => Promise<void>;
 }
 
-const DeleteConfirmModal:FC<DeleteConfirmModalProps> = ({
-    selectedItem,
-    setShowDeleteModal,
-    isDeleting,
-    confirmDelete
+const DeleteConfirmModal: FC<DeleteConfirmModalProps> = ({
+  selectedItem,
+  setShowDeleteModal,
+  isDeleting,
+  confirmDelete,
 }) => {
+  const isDiscount = "title" in selectedItem;
+  const displayName = isDiscount
+    ? (selectedItem as IDiscountFetched).title
+    : (
+        selectedItem as
+          | IMenuItemFetched
+          | IFeaturedItemFetched
+          | IPopularItemFetched
+      ).name;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full mx-4">
@@ -32,11 +51,8 @@ const DeleteConfirmModal:FC<DeleteConfirmModalProps> = ({
           </div>
           <div className="space-y-4 mb-6">
             <div className="text-gray-700 dark:text-gray-300">
-              Are you sure you want to delete{" "}
-              <b>
-                {selectedItem.name || (selectedItem as IDiscountFetched).title}?
-              </b>{" "}
-              This action cannot be undone.
+              Are you sure you want to delete <b>{displayName}?</b> This action
+              cannot be undone.
             </div>
           </div>
           <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -65,6 +81,6 @@ const DeleteConfirmModal:FC<DeleteConfirmModalProps> = ({
       </div>
     </div>
   );
-}
+};
 
-export default DeleteConfirmModal
+export default DeleteConfirmModal;

@@ -68,7 +68,7 @@ export default function RestaurantPage({}: RestaurantPageProps) {
         setMenuItems(
           menuResponse.documents.filter(
             (item) => item.isApproved === true
-          ) as IMenuItemFetched[]
+          ) as unknown as IMenuItemFetched[]
         );
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -347,18 +347,6 @@ export default function RestaurantPage({}: RestaurantPageProps) {
                   Browse Other Restaurants
                 </Button>
               </Link>
-              {restaurant.phone && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    window.open(`tel:${restaurant.phone}`, "_blank")
-                  }
-                  className="border-gray-300 text-gray-700 flex items-center gap-2"
-                >
-                  <Phone className="w-4 h-4" />
-                  Call Restaurant
-                </Button>
-              )}
             </div>
           </div>
         </div>

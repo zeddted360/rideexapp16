@@ -32,7 +32,7 @@ export const createOrderAsync = createAsyncThunk<
       ID.unique(),
       data
     );
-    return response as ICartItemFetched;
+    return response as unknown as ICartItemFetched;
   } catch (error) {
     console.log(error);
     return rejectWithValue({
@@ -53,7 +53,7 @@ export const fetchOrdersByUserIdAsync = createAsyncThunk<
     const response = await databases.listDocuments(databaseId, orderId, [
       Query.equal("userId", userId),
     ]);
-    return response.documents as ICartItemFetched[];
+    return response.documents as unknown as ICartItemFetched[];
   } catch (error) {
     return rejectWithValue(
       error instanceof Error ? error.message : "Failed to fetch orders"
@@ -92,7 +92,7 @@ export const updateOrderAsync = createAsyncThunk<
       orderId,
       orderData
     );
-    return response as ICartItemFetched;
+    return response as unknown as  ICartItemFetched;
   } catch (error) {
     return rejectWithValue(
       error instanceof Error ? error.message : "Failed to update order"

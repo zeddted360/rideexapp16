@@ -27,7 +27,7 @@ export const fetchAllNotifications = createAsyncThunk<INotificationFetched[]>(
       notificationCollectionId,
       [Query.orderDesc("createdAt"), Query.limit(100)]
     );
-    return response.documents as INotificationFetched[];
+    return response.documents as unknown as INotificationFetched[];
   }
 );
 
@@ -44,7 +44,7 @@ export const fetchAdminNotifications = createAsyncThunk<INotificationFetched[]>(
         Query.limit(100),
       ]
     );
-    return response.documents as INotificationFetched[];
+    return response.documents as unknown as INotificationFetched[];
   }
 );
 
@@ -63,7 +63,7 @@ export const fetchUserNotifications = createAsyncThunk<
     ]
   );
 
-  return response.documents as INotificationFetched[];
+  return response.documents as unknown as INotificationFetched[];
 });
 
 export const createNotification = createAsyncThunk<
@@ -80,7 +80,7 @@ export const createNotification = createAsyncThunk<
       createdAt: new Date().toISOString(),
     }
   );
-  return response as INotificationFetched;
+  return response as unknown as INotificationFetched;
 });
 
 export const markNotificationAsRead = createAsyncThunk<
@@ -96,7 +96,7 @@ export const markNotificationAsRead = createAsyncThunk<
       status: "read",
     }
   );
-  return response as INotificationFetched;
+  return response as unknown as INotificationFetched;
 });
 
 export const markAllNotificationsAsRead = createAsyncThunk<string, string>(

@@ -76,7 +76,7 @@ export default function NotificationList({ userType = 'user', maxNotifications =
   const formatNotificationMessage = (notification: INotificationFetched) => {
     switch (notification.type) {
       case 'admin_new_order':
-        const adminMessage = `New order #${notification.orderId} from ${notification.customerPhone}`;
+        const adminMessage = `New order #${notification.orderId} from ${notification.phone}`;
         const distanceInfo = notification.deliveryDistance && notification.deliveryDuration 
           ? ` (${notification.deliveryDistance}, ${notification.deliveryDuration})`
           : '';
