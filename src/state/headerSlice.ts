@@ -4,7 +4,7 @@ import { databases, storage, validateEnv } from "@/utils/appwrite";
 import { ID, Query } from "appwrite";
 import { Models } from "node-appwrite";
 
-interface HeaderConfig extends Models.Document {
+export interface HeaderConfig extends Models.Document {
   title: string;
   subtitle: string;
   logoType: "icon" | "image";
@@ -30,12 +30,12 @@ export const fetchHeaderConfig = createAsyncThunk(
   "header/fetchConfig",
   async (_, { rejectWithValue }) => {
     try {
-      const { offerHeaderConfigCollectionId, offerHeaderLogoBucketId } =
+      const { offerHeaderConfigCollectionId, databaseId } =
         validateEnv();
 
       const response = await databases.listDocuments(
+        databaseId,
         offerHeaderConfigCollectionId,
-        offerHeaderLogoBucketId,
         [Query.limit(1), Query.orderDesc("$createdAt")]
       );
 

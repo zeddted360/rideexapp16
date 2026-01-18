@@ -1,10 +1,13 @@
 // components/offers/EditHeaderModal.tsx
 "use client";
-
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/state/store";
-import { createHeaderConfig, updateHeaderConfig } from "@/state/headerSlice";
+import {
+  createHeaderConfig,
+  HeaderConfig,
+  updateHeaderConfig,
+} from "@/state/headerSlice";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +33,7 @@ import { fileUrl, validateEnv } from "@/utils/appwrite";
 interface EditHeaderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentConfig: any;
+  currentConfig: HeaderConfig | null; // Updated type
 }
 
 export default function EditHeaderModal({
@@ -52,19 +55,34 @@ export default function EditHeaderModal({
 
   const bucketId = validateEnv().offerHeaderLogoBucketId;
 
+  // New effect: Reset form to currentConfig (or defaults) every time modal opens
   useEffect(() => {
-    if (currentConfig) {
-      setTitle(currentConfig.title || "RideEx MiniMart");
-      setSubtitle(
-        currentConfig.subtitle || "Shop groceries, drinks, and essentials"
-      );
-      setLogoType(currentConfig.logoType || "icon");
+    if (isOpen) {
+      if (currentConfig) {
+        setTitle(currentConfig.title || "RideEx MiniMart");
+        setSubtitle(
+          currentConfig.subtitle || "Shop groceries, drinks, and essentials"
+        );
+        setLogoType(currentConfig.logoType || "icon");
 
-      if (currentConfig.logoType === "image" && currentConfig.logoUrl) {
-        setLogoPreview(fileUrl(bucketId, currentConfig.logoUrl));
+        if (currentConfig.logoType === "image" && currentConfig.logoUrl) {
+          setLogoPreview(fileUrl(bucketId, currentConfig.logoUrl));
+        } else {
+          setLogoPreview(null);
+        }
+      } else {
+        // Fallback to defaults if no config
+        setTitle("RideEx MiniMart");
+        setSubtitle("Shop groceries, drinks, and essentials");
+        setLogoType("icon");
+        setLogoPreview(null);
       }
+
+      // Always reset file and errors on open
+      setLogoFile(null);
+      setErrors({});
     }
-  }, [currentConfig, bucketId]);
+  }, [isOpen, currentConfig, bucketId]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -145,13 +163,7 @@ export default function EditHeaderModal({
   };
 
   const handleClose = () => {
-    // Reset form
-    setTitle("RideEx MiniMart");
-    setSubtitle("Shop groceries, drinks, and essentials");
-    setLogoType("icon");
-    setLogoFile(null);
-    setLogoPreview(null);
-    setErrors({});
+    // No longer reset here—handled on next open
     onClose();
   };
 

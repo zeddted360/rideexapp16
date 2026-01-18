@@ -1,5 +1,5 @@
 // utils/appwrite.ts
-import { Account, Client, Databases, ID, Storage,Messaging } from "appwrite";
+import { Account, Client, Databases, ID, Storage, Messaging } from "appwrite";
 
 // Interface to define the structure of environment variables
 interface EnvConfig {
@@ -83,8 +83,8 @@ export function validateEnv(): EnvConfig {
       process.env.NEXT_PUBLIC_APPWRITE_PROMO_IMAGES_BUCKET_ID,
     categoryLogosBucketId:
       process.env.NEXT_PUBLIC_APPWRITE_CATEGORY_LOGO_BUCKET_ID,
-    extrasCollectionId: process.env.NEXT_PUBLIC_EXTRAS_COLLECTION_ID,
     extrasBucketId: process.env.NEXT_PUBLIC_EXTRAS_BUCKET_ID,
+    extrasCollectionId: process.env.NEXT_PUBLIC_EXTRAS_COLLECTION_ID,
     smartSmsApiToken: process.env.NEXT_PUBLIC_RIDEX_SMS_TOKEN,
     smartSmsSenderId: process.env.NEXT_PUBLIC_SENDER_ID,
     adminPhoneNumber: process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER,
@@ -92,6 +92,8 @@ export function validateEnv(): EnvConfig {
     adminPromotionCodesCollectionId:
       process.env.NEXT_PUBLIC_APPWRITE_ADMIN_PROMOTION_COLLECTION!,
     mapSubscriptionsCollectionId: process.env.NEXT_PUBLIC_MAP_SUB_COLLECTION_ID,
+    driversLicenceBucketId:
+      process.env.NEXT_PUBLIC_APPWRITE_DRIVERS_LICENCE_BUCKET_ID!,
     recoveryTokensCollectionId:
       process.env.NEXT_PUBLIC_APPWRITE_RECOVERY_TOKENS_COLLECTION_ID,
     offerHeaderConfigCollectionId:
@@ -150,8 +152,7 @@ export function validateEnv(): EnvConfig {
     adminPromotionCodesCollectionId:
       requiredEnvVars.adminPromotionCodesCollectionId!,
     mapSubscriptionsCollectionId: requiredEnvVars.mapSubscriptionsCollectionId!,
-    driversLicenceBucketId:
-      process.env.NEXT_PUBLIC_APPWRITE_DRIVERS_LICENCE_BUCKET_ID!,
+    driversLicenceBucketId: requiredEnvVars.driversLicenceBucketId!,
     recoveryTokensCollectionId: requiredEnvVars.recoveryTokensCollectionId!,
     offerHeaderConfigCollectionId:
       requiredEnvVars.offerHeaderConfigCollectionId!,
@@ -187,4 +188,4 @@ const fileUrl = (bucketId: string, fileId: string) =>
     validateEnv().projectId
   }&mode=admin`;
 
-export { databases, storage, account, fileUrl, client,messaging };
+export { databases, storage, account, fileUrl, client, messaging };

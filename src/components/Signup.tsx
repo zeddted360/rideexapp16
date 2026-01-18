@@ -32,15 +32,15 @@ type Step = "phone" | "verify" | "form";
 
 const Signup = () => {
   const [step, setStep] = useState<Step>(() => {
-  if (typeof window !== "undefined") {
-    const phoneData = getUserPhone();
-    if (phoneData?.verified) {
-      return "form";
+    if (typeof window !== "undefined") {
+      const phoneData = getUserPhone();
+      if (phoneData?.verified) {
+        return "form";
+      }
+      return (localStorage.getItem(LOCAL_STORAGE_KEYS.STEP) as Step) || "phone";
     }
-    return (localStorage.getItem(LOCAL_STORAGE_KEYS.STEP) as Step) || "phone";
-  }
-  return "phone";
-});
+    return "phone";
+  });
   const [phoneNumber, setPhoneNumber] = useState(() => {
     if (typeof window !== "undefined") {
       const phoneData = getUserPhone();
@@ -50,7 +50,11 @@ const Signup = () => {
     return "";
   });
   const [phoneError, setPhoneError] = useState("");
-  const [code, setCode] = useState(() => typeof window !== "undefined" ? localStorage.getItem(LOCAL_STORAGE_KEYS.CODE) : null);
+  const [code, setCode] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem(LOCAL_STORAGE_KEYS.CODE)
+      : null
+  );
   const [codeError, setCodeError] = useState("");
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
@@ -59,7 +63,8 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [tempUserId, setTempUserId] = useState<string | null>(() => {
-    if (typeof window !== "undefined") return localStorage.getItem(LOCAL_STORAGE_KEYS.TEMP_USER_ID) || null;
+    if (typeof window !== "undefined")
+      return localStorage.getItem(LOCAL_STORAGE_KEYS.TEMP_USER_ID) || null;
     return null;
   });
   const dispatch = useDispatch<AppDispatch>();
@@ -70,6 +75,30 @@ const Signup = () => {
   useEffect(() => {
     if (isAuthenticated) router.push("/");
   }, [isAuthenticated, router]);
+
+  // Validate persisted state on mount
+  useEffect(() => {
+    const validateState = async () => {
+      if (step !== "phone") {
+        try {
+          await account.get();
+          // If there's an active session, but we're in signup, something's wrong - reset
+          resetSignupState();
+          return;
+        } catch {
+          // No session - good for signup
+        }
+
+        const phoneData = getUserPhone();
+        if (!phoneData?.verified || !tempUserId) {
+          resetSignupState();
+        }
+      }
+    };
+
+    validateState();
+  }, []);
+
   // Persist state to localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -97,7 +126,10 @@ const Signup = () => {
   // Countdown timer
   useEffect(() => {
     if (resendCountdown > 0) {
-      const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+      const timer = setTimeout(
+        () => setResendCountdown(resendCountdown - 1),
+        1000
+      );
       return () => clearTimeout(timer);
     }
   }, [resendCountdown]);
@@ -114,12 +146,46 @@ const Signup = () => {
     }
     return formatted;
   }, []);
+
   // Validate phone helper
-  const isValidPhone = useCallback((phone: string): boolean => {
-    const formatted = formatPhone(phone);
-    const regex = /^\+234\d{10}$/;
-    return regex.test(formatted);
-  }, [formatPhone]);
+  const isValidPhone = useCallback(
+    (phone: string): boolean => {
+      const formatted = formatPhone(phone);
+      const regex = /^\+234\d{10}$/;
+      return regex.test(formatted);
+    },
+    [formatPhone]
+  );
+
+  // In Signup.tsx
+
+  // Reset all signup state
+  const resetSignupState = (showToast = true) => {
+    // Add param
+    setStep("phone");
+    setPhoneNumber("");
+    setCode(null);
+    setTempUserId(null);
+    setPhoneError("");
+    setCodeError("");
+    setResendCountdown(0);
+
+    // Clear localStorage
+    Object.values(LOCAL_STORAGE_KEYS).forEach((key) =>
+      localStorage.removeItem(key)
+    );
+
+    // Clear phone verification storage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("userPhoneData");
+    }
+
+    if (showToast) {
+      // Conditional
+      toast("Signup process reset. Please start over.", { icon: "ℹ️" });
+    }
+  };
+
   // Handle phone submission: Create temp account
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +194,9 @@ const Signup = () => {
 
     const formattedPhone = formatPhone(phoneNumber);
     if (!isValidPhone(phoneNumber)) {
-      setPhoneError("Please enter a valid Nigerian phone number (e.g., +2348012345678 or 08012345678)");
+      setPhoneError(
+        "Please enter a valid Nigerian phone number (e.g., +2348012345678 or 08012345678)"
+      );
       setIsSendingCode(false);
       return;
     }
@@ -166,9 +234,11 @@ const Signup = () => {
     } catch (error: any) {
       let errorMessage = "Failed to send verification code";
       if (error.code === 409) {
-        errorMessage = "This phone number is already registered. Please log in instead.";
+        errorMessage =
+          "This phone number is already registered. Please log in instead.";
       } else if (error.code === 400) {
-        errorMessage = "Invalid phone number format. Please check and try again.";
+        errorMessage =
+          "Invalid phone number format. Please check and try again.";
       }
       setPhoneError(errorMessage);
       toast.error(errorMessage);
@@ -264,8 +334,7 @@ const Signup = () => {
       setTempUserId(null);
       localStorage.removeItem(LOCAL_STORAGE_KEYS.TEMP_USER_ID);
     }
-    // Clear all localStorage
-    Object.values(LOCAL_STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    resetSignupState();
     router.push("/login");
   }, [tempUserId, router]);
 
@@ -298,30 +367,34 @@ const Signup = () => {
       // 4. Create user profile in database
       const currentUser = await account.get();
       const { databaseId, userCollectionId } = validateEnv();
-      await databases.createDocument(databaseId, userCollectionId, currentUser.$id, {
-        userId: currentUser.$id,
-        fullName: `${data.firstName} ${data.lastName}`,
-        phone: phoneNumber,
-        email: data.email,
-      });
+      await databases.createDocument(
+        databaseId,
+        userCollectionId,
+        currentUser.$id,
+        {
+          userId: currentUser.$id,
+          fullName: `${data.firstName} ${data.lastName}`,
+          phone: phoneNumber,
+          email: data.email,
+        }
+      );
 
-      // delet session then log in again
+      // delete session then log in again
       await account.deleteSession("current");
       // 6. Refresh Redux state with login
       const loginResult = await dispatch(
         loginAsync({
           email: data.email,
           password: data.password,
-          rememberMe: true,
         })
       );
       if (loginAsync.fulfilled.match(loginResult)) {
+        // Generate 6-digit verification code
         // Phone is already verified on the account
         storeUserPhone(phoneNumber, true);
         toast.success("Account created successfully!");
         // Full cleanup
-        Object.values(LOCAL_STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-        setTempUserId(null);
+        resetSignupState(false); // Silent reset
         router.push("/");
       } else {
         throw new Error("Failed to log in after account update");
@@ -329,9 +402,11 @@ const Signup = () => {
     } catch (error: any) {
       let errorMessage = "Signup failed";
       if (error.code === 409) {
-        errorMessage = "Email already in use. Please log in or use a different email.";
+        errorMessage =
+          "Email already in use. Please log in or use a different email.";
       } else if (error.code === 400) {
-        errorMessage = "Invalid email or password format. Please check and try again.";
+        errorMessage =
+          "Invalid email or password format. Please check and try again.";
       }
       console.error("Signup failed:", error);
       toast.error(errorMessage);

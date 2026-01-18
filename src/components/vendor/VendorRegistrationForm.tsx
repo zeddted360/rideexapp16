@@ -139,7 +139,6 @@ const VendorRegistrationForm = () => {
         loginAsync({
           email: data.email,
           password: data.password,
-          rememberMe: true,
         })
       );
       //trying to update vendor

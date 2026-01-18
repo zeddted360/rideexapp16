@@ -53,7 +53,6 @@ const LoginPage = () => {
         loginAsync({
           email: data.email,
           password: data.password,
-          rememberMe: true,
         })
       );
       

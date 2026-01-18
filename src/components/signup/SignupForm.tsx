@@ -133,7 +133,11 @@ const SignupForm: React.FC<SignupFormProps> = ({
           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 focus:outline-none"
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
-          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          {showPassword ? (
+            <EyeOff className="w-5 h-5" />
+          ) : (
+            <Eye className="w-5 h-5" />
+          )}
         </button>
       </div>
       {signupForm.formState.errors.password && (
@@ -162,11 +166,13 @@ const SignupForm: React.FC<SignupFormProps> = ({
           tabIndex={-1}
           onClick={() => setShowConfirmPassword((v) => !v)}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 focus:outline-none"
-          aria-label={
-            showConfirmPassword ? "Hide password" : "Show password"
-          }
+          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
         >
-          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          {showConfirmPassword ? (
+            <EyeOff className="w-5 h-5" />
+          ) : (
+            <Eye className="w-5 h-5" />
+          )}
         </button>
       </div>
       {signupForm.formState.errors.confirmPassword && (
@@ -176,7 +182,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
       )}
     </div>
     {error && (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-400 rounded-md p-3">
+      <div className="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-400 rounded-md p-3">
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       </div>
     )}
@@ -214,4 +220,4 @@ const SignupForm: React.FC<SignupFormProps> = ({
   </form>
 );
 
-export default SignupForm; 
+export default SignupForm;

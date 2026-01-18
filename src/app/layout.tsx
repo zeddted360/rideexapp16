@@ -2,6 +2,14 @@ import ChatWidget from "../components/ChatWidget";
 import { Wrapper } from "../Providers/Wrapper";
 import "./globals.css";
 import { Metadata } from "next";
+import { Roboto } from "next/font/google";
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  display: "swap",
+  variable: "--font-roboto",
+});
 
 export const metadata: Metadata = {
   title: "RideEx",
@@ -17,9 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Wrapper>
-      {children}
-      <ChatWidget />
-    </Wrapper>
+    <html lang="en">
+      <body className={roboto.className}>
+        <Wrapper>
+          {children}
+          <ChatWidget />
+        </Wrapper>
+      </body>
+    </html>
   );
 }

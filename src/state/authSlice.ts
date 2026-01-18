@@ -47,111 +47,105 @@ const removeLocalStorage = (key: string) => {
 // Async thunk to log in user
 export const loginAsync = createAsyncThunk<
   IUser,
-  { email: string; password: string; rememberMe: boolean },
+  { email: string; password: string },
   { rejectValue: string }
->(
-  "auth/login",
-  async ({ email, password, rememberMe }, { rejectWithValue }) => {
-    try {
-      // Set session persistence based on rememberMe
-      await account.createEmailPasswordSession(email, password);
-      const user = await account.get();
-      const { databaseId, userCollectionId } = validateEnv();
+>("auth/login", async ({ email, password }, { rejectWithValue }) => {
+  try {
+    // Set session persistence based on rememberMe
+    await account.createEmailPasswordSession(email, password);
+    const user = await account.get();
+    const { databaseId, userCollectionId } = validateEnv();
 
-      const userDoc = await databases.getDocument<IUserFectched>(
-        databaseId,
-        userCollectionId,
-        user.$id
-      );
+    const userDoc = await databases.getDocument<IUserFectched>(
+      databaseId,
+      userCollectionId,
+      user.$id
+    );
 
-      const isAdmin = userDoc.isAdmin;
-      if (isAdmin) {
-        // Generate 6-digit verification code
-        const verificationCode = generate({
-          length: 6,
-          charset: "numeric",
-        });
+    const isAdmin = userDoc.isAdmin;
+    if (isAdmin) {
+      // Generate 6-digit verification code
+      const verificationCode = generate({
+        length: 6,
+        charset: "numeric",
+      });
 
-        // Set expiration (10 minutes from now)
-        const codeExpiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      // Set expiration (10 minutes from now)
+      const codeExpiration = new Date(
+        Date.now() + 10 * 60 * 1000
+      ).toISOString();
 
-        // Store code and expiration in Appwrite
-        await databases.updateDocument(
-          databaseId,
-          userCollectionId,
-          user.$id,
-          {
-            verificationCode,
-            codeExpiration,
-          }
-        );
+      // Store code and expiration in Appwrite
+      await databases.updateDocument(databaseId, userCollectionId, user.$id, {
+        verificationCode,
+        codeExpiration,
+      });
 
-        // Call API to send verification code
-        const response = await fetch("/api/admin/verify", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, code: verificationCode }),
-        });
+      // Call API to send verification code
+      const response = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, code: verificationCode }),
+      });
 
-        if (!response.ok) {
-          throw new Error("Failed to send verification code.");
-        }
+      if (!response.ok) {
+        throw new Error("Failed to send verification code.");
+      }
 
-        // Delete session until code is verified
-        await account.deleteSession("current");
-        toast.success(
+      // Delete session until code is verified
+      await account.deleteSession("current");
+      toast.success(
         "Verification code sent to your email. Please verify to log in.",
         {
           icon: "🔒",
           duration: Infinity,
         }
-        );  
-        return {
-          userId: user.$id,
-          username: user.name,
-          email: user.email,
-          role: "admin",
-          phoneNumber: userDoc.phoneNumber,
-          phoneVerified: userDoc.phoneVerified,
-          isAdmin: true,
-          code:verificationCode,
-        } as IUser;
-      }
-
-      // Non-admin user, proceed with login
-      let phoneNumber: string | undefined;
-      let phoneVerified: boolean | undefined;
-
-      const phoneData = getLocalStorage("userPhoneData");
-
-      if (phoneData) {
-        const parsed = JSON.parse(phoneData);
-        phoneNumber = parsed.phoneNumber;
-        phoneVerified = parsed.verified;
-      }
-
+      );
       return {
         userId: user.$id,
         username: user.name,
         email: user.email,
-        role: userDoc.isVendor ? "vendor" : "user",
-        phoneNumber: user.phone || phoneNumber,
-        phoneVerified,
+        role: "admin",
+        phoneNumber: userDoc.phoneNumber,
+        phoneVerified: userDoc.phoneVerified,
+        isAdmin: true,
+        code: verificationCode,
       } as IUser;
-    } catch (error) {
-      // Generic error message for security - don't reveal specific details
-      const message = "Login failed. Please check your credentials.";
-      try {
-        await account.deleteSession("current");
-      } catch (sessionError) {
-        // Ignore session deletion errors
-      }
-      return rejectWithValue(message);
     }
+
+    // Non-admin user, proceed with login
+    let phoneNumber: string | undefined;
+    let phoneVerified: boolean | undefined;
+
+    const phoneData = getLocalStorage("userPhoneData");
+
+    if (phoneData) {
+      const parsed = JSON.parse(phoneData);
+      phoneNumber = parsed.phoneNumber;
+      phoneVerified = parsed.verified;
+    }
+
+    return {
+      userId: user.$id,
+      username: user.name,
+      email: user.email,
+      role: userDoc.isVendor ? "vendor" : "user",
+      phoneNumber: user.phone || phoneNumber,
+      phoneVerified,
+    } as IUser;
+  } catch (error) {
+    // Generic error message for security - don't reveal specific details
+    const message = "Login failed. Please check your credentials.";
+    try {
+      await account.deleteSession("current");
+    } catch (sessionError) {
+      // Ignore session deletion errors
+    }
+    return rejectWithValue(message);
   }
-);
+});
 
 // Async thunk to log in as guest
 export const loginAsGuestAsync = createAsyncThunk<
@@ -241,23 +235,21 @@ export const getCurrentUserAsync = createAsyncThunk<
     // Fetch user document from users collection to get isAdmin
     const { databaseId, userCollectionId } = validateEnv();
     let isAdmin = false;
-    let role:"admin" | "user" | "vendor" = "user";
+    let role: "admin" | "user" | "vendor" = "user";
     let phoneNumber: string | undefined;
     let phoneVerified: boolean | undefined;
     let fullName: string;
 
-
     try {
-      const userDoc:IUserFectched = await databases.getDocument(
+      const userDoc: IUserFectched = await databases.getDocument(
         databaseId,
         userCollectionId,
         user.$id
       );
 
-      
       isAdmin = userDoc.isAdmin ?? false;
-      role = isAdmin ? "admin" : userDoc.isVendor ? "vendor" :"user";
-      phoneNumber = userDoc.phoneNumber
+      role = isAdmin ? "admin" : userDoc.isVendor ? "vendor" : "user";
+      phoneNumber = userDoc.phoneNumber;
       fullName = userDoc.fullName || "";
     } catch (err) {
       // If user doc not found or isAdmin missing, default to false
@@ -308,29 +300,26 @@ const authSlice = createSlice({
         state.user = action.payload;
         state.error = null;
       })
-      .addCase(
-        loginAsync.rejected,
-        (state, action) => {
-          state.loading = "failed";
-          state.error = action.payload || "Login failed";
-        }
-      )
+      .addCase(loginAsync.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload || "Login failed";
+      })
       .addCase(loginAsGuestAsync.pending, (state) => {
         state.loading = "pending";
         state.error = null;
       })
-      .addCase(loginAsGuestAsync.fulfilled, (state, action: PayloadAction<IUser>) => {
-        state.loading = "succeeded";
-        state.user = action.payload;
-        state.error = null;
-      })
       .addCase(
-        loginAsGuestAsync.rejected,
-        (state, action) => {
-          state.loading = "failed";
-          state.error = action.payload || "Guest login failed";
+        loginAsGuestAsync.fulfilled,
+        (state, action: PayloadAction<IUser>) => {
+          state.loading = "succeeded";
+          state.user = action.payload;
+          state.error = null;
         }
       )
+      .addCase(loginAsGuestAsync.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload || "Guest login failed";
+      })
       .addCase(logoutAsync.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -340,29 +329,26 @@ const authSlice = createSlice({
         state.user = null;
         state.error = null;
       })
-      .addCase(
-        logoutAsync.rejected,
-        (state, action) => {
-          state.loading = "failed";
-          state.error = action.payload || "Logout failed";
-        }
-      )
+      .addCase(logoutAsync.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload || "Logout failed";
+      })
       .addCase(getCurrentUserAsync.pending, (state) => {
         state.loading = "pending";
         state.error = null;
       })
-      .addCase(getCurrentUserAsync.fulfilled, (state, action: PayloadAction<IUser | null>) => {
-        state.loading = "succeeded";
-        state.user = action.payload;
-        state.error = null;
-      })
       .addCase(
-        getCurrentUserAsync.rejected,
-        (state, action) => {
-          state.loading = "failed";
-          state.error = action.payload || "Failed to get current user";
+        getCurrentUserAsync.fulfilled,
+        (state, action: PayloadAction<IUser | null>) => {
+          state.loading = "succeeded";
+          state.user = action.payload;
+          state.error = null;
         }
-      );
+      )
+      .addCase(getCurrentUserAsync.rejected, (state, action) => {
+        state.loading = "failed";
+        state.error = action.payload || "Failed to get current user";
+      });
   },
 });
 
