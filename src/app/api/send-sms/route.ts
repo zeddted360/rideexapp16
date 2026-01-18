@@ -7,13 +7,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { to, message, adminNumber, adminMessage } = body;
 
-    if (adminMessage) {
-      console.log(
-        "The admin message received in api/send-sms is :",
-        adminMessage
-      );
-    }
-
     // Validate required fields
     if (!to || !message) {
       return NextResponse.json(

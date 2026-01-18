@@ -576,7 +576,7 @@ export default function CheckoutClient() {
     }
 
     // Business validation: Order value must be at least equal to delivery fee
-    if (subtotal < deliveryFee) {
+    if (paymentMethod === "cash" && subtotal < deliveryFee) {
       handleError(
         "Order value must be at least equal to delivery fee amount. Please add more items to your cart to continue.",
         true
