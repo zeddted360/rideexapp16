@@ -435,6 +435,7 @@ export default function AdminDashboard() {
       toast.error(error.message || "Failed to delete user");
     }
   };
+  
   // User admin toggle handler
   // Generate 6-digit code
   const generateCode = () =>

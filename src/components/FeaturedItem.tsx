@@ -2,15 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import {
-  ThumbsUp,
-  ChevronLeft,
-  ChevronRight,
-  ShoppingBag,
-  Heart,
-  AlertCircle,
-} from "lucide-react";
+import { ThumbsUp, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/state/store";
 import { IFeaturedItemFetched } from "../../types/types";
@@ -21,8 +13,8 @@ import { listAsyncFeaturedItems } from "@/state/featuredSlice";
 import { useAuth } from "@/context/authContext";
 import { useRouter } from "next/navigation";
 import FeaturedItemSkeleton from "./FeaturedItemSkeleton";
-import { OutOfStockModal } from "@/components/OutOfStockModal"; // Import the reusable modal
-import { OutOfStockOverlay } from "@/components/OutOfStockOverlay"; // Import the reusable overlay
+import { OutOfStockModal } from "@/components/OutOfStockModal";
+import { OutOfStockOverlay } from "@/components/OutOfStockOverlay";
 import { Button } from "./ui/button";
 
 interface IFeaturedItemProps {
@@ -44,9 +36,6 @@ const FeaturedItem: React.FC<IFeaturedItemProps> = ({
   const { featuredItems, loading, error } = useSelector(
     (state: RootState) => state.featuredItem
   );
-  const { setIsOpen, setItem } = useShowCart();
-  const router = useRouter();
-  const { user } = useAuth();
 
   // Fetch featured items on mount
   useEffect(() => {
@@ -272,7 +261,6 @@ const FeaturedItemCard = ({
         }`}
         onClick={handleCardClick}
       >
-
         {/* Out of Stock Overlay */}
         {isOutOfStock && <OutOfStockOverlay itemName={item.name} />}
 
@@ -286,6 +274,16 @@ const FeaturedItemCard = ({
               isOutOfStock ? "brightness-75" : "group-hover:scale-105"
             }`}
           />
+
+          {/* Rating Badge Overlay - Bottom Left - Rounded like button */}
+          {!isOutOfStock && (
+            <div className="absolute bottom-2 left-2 bg-orange-500 rounded-full px-2 py-0.5 flex items-center gap-1 shadow-md">
+              <ThumbsUp className="w-3 h-3 text-white fill-white" />
+              <span className="text-xs font-bold text-white">
+                {ratingPercentage.toFixed(0)}%
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -300,32 +298,26 @@ const FeaturedItemCard = ({
             >
               {item.name}
             </h3>
-            {!isOutOfStock && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFavorite(item.$id);
-                }}
-                className="flex-shrink-0"
-              >
-                <Heart
-                  className={`w-5 h-5 transition-all duration-300 ${
-                    isFavorited
-                      ? "fill-red-500 text-red-500 scale-110"
-                      : "text-gray-600 dark:text-gray-300"
-                  }`}
-                />
-              </button>
-            )}
           </div>
 
           <p
-            className={`text-xs text-gray-500 dark:text-gray-400 mb-2 line-clamp-1 ${
+            className={`text-xs text-gray-500 dark:text-gray-400 mb-1 line-clamp-1 ${
               isOutOfStock ? "text-gray-400 dark:text-gray-500" : ""
             }`}
           >
             {restaurantName}
           </p>
+
+          {/* Description */}
+          {item.description && (
+            <p
+              className={`text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-2 ${
+                isOutOfStock ? "text-gray-400 dark:text-gray-500" : ""
+              }`}
+            >
+              {item.description}
+            </p>
+          )}
 
           <div className="flex items-center justify-between">
             <span
@@ -349,7 +341,14 @@ const FeaturedItemCard = ({
               }`}
             >
               <ShoppingBag className="w-3.5 h-3.5 mr-1" />
-              {isOutOfStock ? "Unavailable" : "Add"}
+              {isOutOfStock ? (
+                "Unavailable"
+              ) : (
+                <>
+                  <span className="sm:hidden">Add</span>
+                  <span className="hidden sm:inline">Add to Cart</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
