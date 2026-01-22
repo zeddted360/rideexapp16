@@ -25,14 +25,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta
           name="facebook-domain-verification"
           content="hgo5dgli6dij5fvyhqog6fw2fatffg"
         />
       </head>
-      <body className={roboto.className}>
+      <body className={`${roboto.className} min-h-screen flex flex-col`}>
         <Wrapper>
           {children}
           <ChatWidget />

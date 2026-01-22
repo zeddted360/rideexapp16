@@ -15,8 +15,7 @@ import MobileNavigation from "../components/ui/MobileNavigation";
 import Header from "../components/header";
 export const Wrapper = ({ children }: { children: ReactNode }) => {
   return (
-    <html suppressHydrationWarning={true}>
-      <body className="min-h-screen flex flex-col">
+      <>
         <Toaster position="top-right" />
         <_ThemeProvider>
           <TranslationProvider>
@@ -40,7 +39,6 @@ export const Wrapper = ({ children }: { children: ReactNode }) => {
             </LanguageProvider>
           </TranslationProvider>
         </_ThemeProvider>
-      </body>
-    </html>
+      </>
   );
 };

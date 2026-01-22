@@ -1,7 +1,6 @@
-// state/categoryLogosSlice.ts
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { storage, validateEnv } from '@/utils/appwrite';
-import { ID, Models } from 'appwrite';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { storage, validateEnv } from "@/utils/appwrite";
+import { ID, Models, Query } from "appwrite";
 
 type LogosStateType = {
   restaurant: Models.File | null;
@@ -10,12 +9,8 @@ type LogosStateType = {
 };
 
 interface UpdateLogoPayload {
-  category: string;
+  category: keyof LogosStateType;
   file: File;
-}
-
-interface DeleteLogoPayload {
-  category: string;
 }
 
 const initialState = {
@@ -24,78 +19,107 @@ const initialState = {
   error: null as string | null,
 };
 
+// Helper to get the latest logo file for a prefix (or null)
+const getLatestLogo = async (
+  bucketId: string,
+  prefix: string,
+): Promise<Models.File | null> => {
+  const response = await storage.listFiles(bucketId, [
+    Query.startsWith("name", prefix),
+    Query.orderDesc("$createdAt"),
+    Query.limit(1),
+  ]);
+  return response.files[0] || null;
+};
+
+// Helper to get ALL files matching a prefix (for cleanup)
+const getAllMatchingFiles = async (
+  bucketId: string,
+  prefix: string,
+): Promise<Models.File[]> => {
+  const response = await storage.listFiles(bucketId, [
+    Query.startsWith("name", prefix),
+  ]);
+  return response.files;
+};
+
 export const listAsyncLogos = createAsyncThunk(
-  'categoryLogos/listAsyncLogos',
+  "categoryLogos/listAsyncLogos",
   async (): Promise<LogosStateType> => {
     const { categoryLogosBucketId } = validateEnv();
-    const response = await storage.listFiles(categoryLogosBucketId);
-    const filesArray = response.files;
-    const restaurantLogo = filesArray.find((f: Models.File) => f.name.startsWith('restaurant-logo'));
-    const shopsLogo = filesArray.find((f: Models.File) => f.name.startsWith('shops-logo'));
-    const pharmacyLogo = filesArray.find((f: Models.File) => f.name.startsWith('pharmacy-logo'));
-    return {
-      restaurant: restaurantLogo || null,
-      shops: shopsLogo || null,
-      pharmacy: pharmacyLogo || null,
-    };
-  }
+
+    // Fetch latest for each category in parallel
+    const [restaurant, shops, pharmacy] = await Promise.all([
+      getLatestLogo(categoryLogosBucketId, "restaurant-logo"),
+      getLatestLogo(categoryLogosBucketId, "shops-logo"),
+      getLatestLogo(categoryLogosBucketId, "pharmacy-logo"),
+    ]);
+
+    return { restaurant, shops, pharmacy };
+  },
 );
 
 export const updateAsyncLogo = createAsyncThunk(
-  'categoryLogos/updateAsyncLogo',
+  "categoryLogos/updateAsyncLogo",
   async ({ category, file }: UpdateLogoPayload): Promise<LogosStateType> => {
     const { categoryLogosBucketId } = validateEnv();
-    // Fetch current files to check for existing
-    const response = await storage.listFiles(categoryLogosBucketId);
-    const current = response.files.find((f: Models.File) => f.name.startsWith(`${category}-logo`));
-    if (current) {
-      await storage.deleteFile(categoryLogosBucketId, current.$id);
+    const prefix = `${category}-logo`;
+
+    // 1. Cleanup: Delete ALL old files matching prefix
+    const oldFiles = await getAllMatchingFiles(categoryLogosBucketId, prefix);
+    for (const oldFile of oldFiles) {
+      await storage.deleteFile(categoryLogosBucketId, oldFile.$id);
     }
-    // Create new file
-    const ext = file.name.split('.').pop() || 'png';
-    const newName = `${category}-logo.${ext}`;
+
+    // 2. Upload new file
+    const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+    const newName = `${prefix}.${ext}`;
     const newFile = new File([file], newName, { type: file.type });
-    await storage.createFile(categoryLogosBucketId, ID.unique(), newFile);
-    // Refetch all logos
-    const newResponse = await storage.listFiles(categoryLogosBucketId);
-    const filesArray = newResponse.files;
-    const restaurantLogo = filesArray.find((f: Models.File) => f.name.startsWith('restaurant-logo'));
-    const shopsLogo = filesArray.find((f: Models.File) => f.name.startsWith('shops-logo'));
-    const pharmacyLogo = filesArray.find((f: Models.File) => f.name.startsWith('pharmacy-logo'));
-    return {
-      restaurant: restaurantLogo || null,
-      shops: shopsLogo || null,
-      pharmacy: pharmacyLogo || null,
-    };
-  }
+    const uploadedFile = await storage.createFile(
+      categoryLogosBucketId,
+      ID.unique(),
+      newFile,
+    );
+
+    // 3. Refetch latest for ALL categories (ensures accurate state)
+    const [restaurant, shops, pharmacy] = await Promise.all([
+      getLatestLogo(categoryLogosBucketId, "restaurant-logo"),
+      getLatestLogo(categoryLogosBucketId, "shops-logo"),
+      getLatestLogo(categoryLogosBucketId, "pharmacy-logo"),
+    ]);
+
+    return { restaurant, shops, pharmacy };
+  },
 );
 
 export const deleteAsyncLogo = createAsyncThunk(
-  'categoryLogos/deleteAsyncLogo',
-  async (category: string): Promise<LogosStateType> => {
+  "categoryLogos/deleteAsyncLogo",
+  async (category: keyof LogosStateType): Promise<LogosStateType> => {
     const { categoryLogosBucketId } = validateEnv();
-    // Fetch current files to find the one to delete
-    const response = await storage.listFiles(categoryLogosBucketId);
-    const current = response.files.find((f: Models.File) => f.name.startsWith(`${category}-logo`));
-    if (current) {
-      await storage.deleteFile(categoryLogosBucketId, current.$id);
+    const prefix = `${category}-logo`;
+
+    // 1. Delete ALL matching files
+    const filesToDelete = await getAllMatchingFiles(
+      categoryLogosBucketId,
+      prefix,
+    );
+    for (const file of filesToDelete) {
+      await storage.deleteFile(categoryLogosBucketId, file.$id);
     }
-    // Refetch all logos
-    const newResponse = await storage.listFiles(categoryLogosBucketId);
-    const filesArray = newResponse.files;
-    const restaurantLogo = filesArray.find((f: Models.File) => f.name.startsWith('restaurant-logo'));
-    const shopsLogo = filesArray.find((f: Models.File) => f.name.startsWith('shops-logo'));
-    const pharmacyLogo = filesArray.find((f: Models.File) => f.name.startsWith('pharmacy-logo'));
-    return {
-      restaurant: restaurantLogo || null,
-      shops: shopsLogo || null,
-      pharmacy: pharmacyLogo || null,
-    };
-  }
+
+    // 2. Refetch latest for ALL categories
+    const [restaurant, shops, pharmacy] = await Promise.all([
+      getLatestLogo(categoryLogosBucketId, "restaurant-logo"),
+      getLatestLogo(categoryLogosBucketId, "shops-logo"),
+      getLatestLogo(categoryLogosBucketId, "pharmacy-logo"),
+    ]);
+
+    return { restaurant, shops, pharmacy };
+  },
 );
 
 const categoryLogosSlice = createSlice({
-  name: 'categoryLogos',
+  name: "categoryLogos",
   initialState,
   reducers: {},
   extraReducers: (builder) => {
@@ -110,7 +134,7 @@ const categoryLogosSlice = createSlice({
       })
       .addCase(listAsyncLogos.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to fetch logos';
+        state.error = action.error.message || "Failed to fetch logos";
       })
       .addCase(updateAsyncLogo.pending, (state) => {
         state.loading = true;
@@ -122,7 +146,7 @@ const categoryLogosSlice = createSlice({
       })
       .addCase(updateAsyncLogo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to update logo';
+        state.error = action.error.message || "Failed to update logo";
       })
       .addCase(deleteAsyncLogo.pending, (state) => {
         state.loading = true;
@@ -134,7 +158,7 @@ const categoryLogosSlice = createSlice({
       })
       .addCase(deleteAsyncLogo.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Failed to delete logo';
+        state.error = action.error.message || "Failed to delete logo";
       });
   },
 });

@@ -7,15 +7,15 @@ import {
   Phone,
   MapPin,
   ArrowRight,
-  Info, // For About Us
-  HelpCircle, // For FAQ
-  FileText, // For Terms and Conditions
-  Cookie, // For Cookies
-  Lock, // For Privacy Policies
-  UserPlus, // For Become a Vendor
-  Bike, // For Join as a Rider
-  Twitter, // For X (using Twitter icon as a stand-in for X)
-  Youtube, // For YouTube
+  Info, 
+  HelpCircle, 
+  FileText, 
+  Cookie, 
+  Lock, 
+  UserPlus, 
+  Bike, 
+  Twitter, 
+  Youtube, 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +83,7 @@ export default function Footer() {
 
   return (
     <ClientOnly>
-      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden">
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden pb-20 md:pb-8">
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-red-500/10 to-pink-500/10"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.02)_1px,transparent_0)] bg-[length:20px_20px]"></div>

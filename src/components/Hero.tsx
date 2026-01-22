@@ -45,6 +45,7 @@ const MiniNavigation = () => {
   const isAdmin = user?.role === "admin";
   const { restaurantBucketId, categoryLogosBucketId } = validateEnv();
 
+
   useEffect(() => {
     setIsClient(true);
     dispatch(listAsyncRestaurants());
@@ -56,13 +57,8 @@ const MiniNavigation = () => {
 
     const channel = `buckets.${categoryLogosBucketId}.files`;
     const unsubscribe = client.subscribe(channel, (payload) => {
-      if (
-        payload.events &&
-        payload.events.some(
-          (event) =>
-            event.startsWith("storage.buckets.") && event.includes(".files")
-        )
-      ) {
+      // Any event on this channel means a file changed → refetch
+      if (payload.events && payload.events.length > 0) {
         dispatch(listAsyncLogos());
       }
     });
@@ -71,7 +67,7 @@ const MiniNavigation = () => {
       unsubscribe();
     };
   }, [categoryLogosBucketId, isClient, dispatch]);
-
+  
   useEffect(() => {
     if (error) {
       toast.error(error);
