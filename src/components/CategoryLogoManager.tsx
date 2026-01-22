@@ -8,31 +8,51 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Upload, X, Image as ImageIcon, Pencil, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  Upload,
+  X,
+  Image as ImageIcon,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { z } from "zod";
 import Image from "next/image";
-import { useAuth } from "@/context/authContext"; 
+import { useAuth } from "@/context/authContext";
 import { RootState, AppDispatch } from "@/state/store";
 import { updateAsyncLogo, deleteAsyncLogo } from "@/state/categoryLogosSlice";
 
 const imageSchema = z.object({
-  image: z.custom<FileList>((val) => val instanceof FileList && val.length > 0, "Image is required"),
+  image: z.custom<FileList>(
+    (val) => val instanceof FileList && val.length > 0,
+    "Image is required",
+  ),
 });
 
 type ImageFormData = z.infer<typeof imageSchema>;
 
-type LogosState = {
-  restaurant: Models.File | null;
-  shops: Models.File | null;
-  pharmacy: Models.File | null;
-};
+type CategoryKey = "restaurant" | "shops" | "pharmacy";
 
 const CategoryLogoManager: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { logos, loading } = useSelector((state: RootState) => state.categoryLogos);
-  const [updatingCategory, setUpdatingCategory] = useState<string | null>(null);
-  const [deleteCategory, setDeleteCategory] = useState<string | null>(null);
+  const { logos, loading } = useSelector(
+    (state: RootState) => state.categoryLogos,
+  );
+  const [updatingCategory, setUpdatingCategory] = useState<CategoryKey | null>(
+    null,
+  );
+  const [deleteCategory, setDeleteCategory] = useState<CategoryKey | null>(
+    null,
+  );
   const [isDeletingLogo, setIsDeletingLogo] = useState<boolean>(false);
 
   const { user } = useAuth();
@@ -44,11 +64,15 @@ const CategoryLogoManager: React.FC = () => {
   });
 
   const bucketId = validateEnv().categoryLogosBucketId;
-  const categories = ["restaurant", "shops", "pharmacy"] as const;
+  const categories: CategoryKey[] = ["restaurant", "shops", "pharmacy"];
 
-  const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
+  const capitalize = (str: string) =>
+    str.charAt(0).toUpperCase() + str.slice(1);
 
-  const handleUploadLogo = async (category: string, data: ImageFormData) => {
+  const handleUploadLogo = async (
+    category: CategoryKey,
+    data: ImageFormData,
+  ) => {
     try {
       const file = data.image[0];
       if (!file) {
@@ -65,7 +89,7 @@ const CategoryLogoManager: React.FC = () => {
     }
   };
 
-  const confirmDelete = async (category: string) => {
+  const confirmDelete = async (category: CategoryKey) => {
     setIsDeletingLogo(true);
     try {
       await dispatch(deleteAsyncLogo(category)).unwrap();
@@ -79,7 +103,7 @@ const CategoryLogoManager: React.FC = () => {
     }
   };
 
-  const handleDeleteLogo = (category: string) => {
+  const handleDeleteLogo = (category: CategoryKey) => {
     setDeleteCategory(category);
   };
 
@@ -88,7 +112,9 @@ const CategoryLogoManager: React.FC = () => {
       <div className="flex justify-center items-center p-12">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">Loading category logos...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Loading category logos...
+          </p>
         </div>
       </div>
     );
@@ -99,18 +125,19 @@ const CategoryLogoManager: React.FC = () => {
       <div className="w-full py-6 px-2 ">
         <div className="text-center mb-8">
           <p className="text-gray-600 dark:text-gray-400 text-sm">
-            Upload or update logos for your categories. Maximum of one logo per category.
+            Upload or update logos for your categories. Maximum of one logo per
+            category.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 ">
           {categories.map((category) => {
-            const currentLogo = logos[category as keyof LogosState];
+            const currentLogo = logos[category];
             const isUpdating = updatingCategory === category;
-            
+
             return (
-              <div 
-                key={category} 
+              <div
+                key={category}
                 className="group  relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border  border-gray-200 dark:border-gray-700"
               >
                 <div className="p-2 space-y-4">
@@ -131,14 +158,21 @@ const CategoryLogoManager: React.FC = () => {
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <ImageIcon className="w-16 h-16 text-gray-400 dark:text-gray-500 mb-3" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No logo uploaded</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                          No logo uploaded
+                        </p>
                       </div>
                     )}
                   </div>
 
                   {isAdmin && (
                     <div className="flex gap-3 pt-2">
-                      <Dialog open={isUpdating} onOpenChange={(open) => !open && setUpdatingCategory(null)}>
+                      <Dialog
+                        open={isUpdating}
+                        onOpenChange={(open) =>
+                          !open && setUpdatingCategory(null)
+                        }
+                      >
                         <DialogTrigger asChild className="">
                           <Button
                             onClick={() => setUpdatingCategory(category)}
@@ -159,15 +193,21 @@ const CategoryLogoManager: React.FC = () => {
                         <DialogContent className="sm:max-w-md">
                           <DialogHeader>
                             <DialogTitle className="text-xl font-bold">
-                              {currentLogo ? "Update" : "Upload"} {capitalize(category)} 
+                              {currentLogo ? "Update" : "Upload"}{" "}
+                              {capitalize(category)}
                             </DialogTitle>
                           </DialogHeader>
                           <form
-                            onSubmit={form.handleSubmit((data) => handleUploadLogo(category, data))}
+                            onSubmit={form.handleSubmit((data) =>
+                              handleUploadLogo(category, data),
+                            )}
                             className="mt-6 space-y-6"
                           >
                             <div className="space-y-3">
-                              <Label htmlFor={`${category}-image`} className="text-sm font-semibold">
+                              <Label
+                                htmlFor={`${category}-image`}
+                                className="text-sm font-semibold"
+                              >
                                 Select Image
                               </Label>
                               <Input
@@ -178,7 +218,9 @@ const CategoryLogoManager: React.FC = () => {
                                 className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 dark:file:bg-orange-900/30 dark:file:text-orange-400"
                               />
                               {form.formState.errors.image && (
-                                <p className="text-red-500 text-sm">{form.formState.errors.image.message}</p>
+                                <p className="text-red-500 text-sm">
+                                  {form.formState.errors.image.message}
+                                </p>
                               )}
                             </div>
                             <div className="flex gap-3">
@@ -196,7 +238,9 @@ const CategoryLogoManager: React.FC = () => {
                                 ) : (
                                   <>
                                     <Upload className="w-4 h-4 mr-2" />
-                                    {currentLogo ? "Update Logo" : "Upload Logo"}
+                                    {currentLogo
+                                      ? "Update Logo"
+                                      : "Upload Logo"}
                                   </>
                                 )}
                               </Button>
@@ -213,7 +257,7 @@ const CategoryLogoManager: React.FC = () => {
                           </form>
                         </DialogContent>
                       </Dialog>
-                      
+
                       {currentLogo && (
                         <Button
                           variant="destructive"
@@ -234,7 +278,10 @@ const CategoryLogoManager: React.FC = () => {
       </div>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={!!deleteCategory} onOpenChange={() => setDeleteCategory(null)}>
+      <Dialog
+        open={!!deleteCategory}
+        onOpenChange={() => setDeleteCategory(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
@@ -242,7 +289,9 @@ const CategoryLogoManager: React.FC = () => {
               Delete Logo
             </DialogTitle>
             <DialogDescription className="text-sm">
-              Are you sure you want to delete the {deleteCategory ? capitalize(deleteCategory) : ''} logo? This action cannot be undone.
+              Are you sure you want to delete the{" "}
+              {deleteCategory ? capitalize(deleteCategory) : ""} logo? This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-3">
@@ -260,7 +309,7 @@ const CategoryLogoManager: React.FC = () => {
               onClick={() => deleteCategory && confirmDelete(deleteCategory)}
               className="flex font-medium justify-center items-center"
             >
-             {isDeletingLogo ? <Loader2 size={24}/> : "Delete"} 
+              {isDeletingLogo ? <Loader2 size={24} /> : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
