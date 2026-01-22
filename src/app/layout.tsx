@@ -26,6 +26,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <meta
+          name="facebook-domain-verification"
+          content="hgo5dgli6dij5fvyhqog6fw2fatffg"
+        />
+      </head>
       <body className={roboto.className}>
         <Wrapper>
           {children}
