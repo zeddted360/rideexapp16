@@ -1,5 +1,12 @@
 "use client";
-import { BikeIcon, Star, ChevronLeft, ChevronRight, Timer, TimerOff } from "lucide-react";
+import {
+  BikeIcon,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  Timer,
+  TimerOff,
+} from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useDispatch, useSelector } from "react-redux";
@@ -57,7 +64,10 @@ const RestaurantCard = React.memo(
         <div className="relative">
           <div className="w-full aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-700">
             <Image
-              src={fileUrl(validateEnv().restaurantBucketId, restaurant.logo as unknown as string)}
+              src={fileUrl(
+                validateEnv().restaurantBucketId,
+                restaurant.logo as unknown as string,
+              )}
               alt={`${restaurant.name} logo`}
               width={200}
               height={150}
@@ -103,7 +113,7 @@ const RestaurantCard = React.memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 RestaurantCard.displayName = "RestaurantCard";
@@ -139,19 +149,26 @@ const Menu = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
-  
+
   const dispatch = useDispatch<AppDispatch>();
   const { error, loading, restaurants } = useSelector(
-    (state: RootState) => state.restaurant
+    (state: RootState) => state.restaurant,
   );
   const router = useRouter();
 
-  // Sort restaurants by rating descending
-  const sortedRestaurants = React.useMemo(() => {
-    return [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  // Filter non-paused first
+  const activeRestaurants = React.useMemo(() => {
+    return restaurants.filter((r) => r.isPaused !== true);
   }, [restaurants]);
 
-  const displayRestaurants = sortedRestaurants.slice(0, 4);
+  // Then sort and slice
+  const sortedActiveRestaurants = React.useMemo(() => {
+    return [...activeRestaurants].sort(
+      (a, b) => (b.rating || 0) - (a.rating || 0),
+    );
+  }, [activeRestaurants]);
+
+  const displayRestaurants = sortedActiveRestaurants.slice(0, 4);
 
   // Check scroll position for arrow visibility
   const checkScrollPosition = () => {
@@ -189,17 +206,17 @@ const Menu = () => {
       checkScrollPosition();
       scrollContainer.addEventListener("scroll", checkScrollPosition);
       window.addEventListener("resize", checkScrollPosition);
-      
+
       return () => {
         scrollContainer.removeEventListener("scroll", checkScrollPosition);
         window.removeEventListener("resize", checkScrollPosition);
       };
     }
-  }, [sortedRestaurants]);
+  }, [sortedActiveRestaurants]);
 
   const isLoading = loading === "idle" || loading === "pending";
   const hasFailed = loading === "failed";
-  const hasRestaurants = sortedRestaurants.length > 0;
+  const hasRestaurants = sortedActiveRestaurants.length > 0;
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
@@ -261,7 +278,7 @@ const Menu = () => {
               ) : hasFailed ? (
                 <ErrorState error={error || "Failed to load restaurants"} />
               ) : hasRestaurants ? (
-                displayRestaurants.filter(r=>r.isPaused !== true).map((restaurant) => (
+                displayRestaurants.map((restaurant) => (
                   <RestaurantCard
                     key={restaurant.$id}
                     restaurant={restaurant}
