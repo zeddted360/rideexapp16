@@ -45,6 +45,7 @@ const PromotionalImageManager: React.FC = () => {
   const { images, loading, error } = useSelector(
     (state: RootState) => state.promotionalImages
   );
+
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const { user } = useAuth();

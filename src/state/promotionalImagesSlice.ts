@@ -1,27 +1,26 @@
 // state/promotionalImagesSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
-import { ID, Models } from "appwrite";
+import { ID, Models, Query } from "appwrite";
 import { storage, validateEnv } from "../utils/appwrite";
 
-// Shared function to get promo images
-const getPromoImages = async (): Promise<Models.File[]> => {
+const fetchLatestPromoImages = async (): Promise<Models.File[]> => {
   const { promoImagesBucketId } = validateEnv();
-  const response = await storage.listFiles(promoImagesBucketId);
-  return response.files
-    .filter((file) => file.name.startsWith("promo_"))
-    .sort(
-      (a, b) =>
-        new Date(b.$createdAt).getTime() - new Date(a.$createdAt).getTime()
-    )
-    .slice(0, 2);
+
+  const response = await storage.listFiles(promoImagesBucketId, [
+    Query.startsWith("name", "promo_"),
+    Query.orderDesc("$createdAt"),
+    Query.limit(2), // Only get the 2 newest
+  ]);
+
+  return response.files;
 };
 
 // Async Thunks
 export const fetchPromotionalImages = createAsyncThunk(
   "promotionalImages/fetch",
   async () => {
-    return await getPromoImages();
-  }
+    return await fetchLatestPromoImages();
+  },
 );
 
 export const createPromotionalImage = createAsyncThunk(
@@ -31,8 +30,8 @@ export const createPromotionalImage = createAsyncThunk(
     const customName = `promo_${Date.now()}_${file.name}`;
     const renamedFile = new File([file], customName, { type: file.type });
     await storage.createFile(promoImagesBucketId, ID.unique(), renamedFile);
-    return await getPromoImages(); // Fetch updated list
-  }
+    return await fetchLatestPromoImages();
+  },
 );
 
 export const updatePromotionalImage = createAsyncThunk(
@@ -43,8 +42,8 @@ export const updatePromotionalImage = createAsyncThunk(
     const customName = `promo_${Date.now()}_${file.name}`;
     const renamedFile = new File([file], customName, { type: file.type });
     await storage.createFile(promoImagesBucketId, ID.unique(), renamedFile);
-    return await getPromoImages(); // Fetch updated list
-  }
+    return await fetchLatestPromoImages();
+  },
 );
 
 export const deletePromotionalImage = createAsyncThunk(
@@ -52,8 +51,8 @@ export const deletePromotionalImage = createAsyncThunk(
   async (fileId: string) => {
     const { promoImagesBucketId } = validateEnv();
     await storage.deleteFile(promoImagesBucketId, fileId);
-    return await getPromoImages(); // Fetch updated list
-  }
+    return await fetchLatestPromoImages();
+  },
 );
 
 // Slice
