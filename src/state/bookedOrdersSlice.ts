@@ -143,10 +143,10 @@ export const deleteBookedOrder = createAsyncThunk<
 
 function get_sms_message(status: string, rider_code: string) {
   const messages: { [key: string]: string } = {
-    confirmed: `Yay! 🎉 Your order #${rider_code} is confirmed.\nWe've received it and the restaurant is preparing your food.🍔🍕`,
-    out_for_delivery: `It's on the way! 🚴💨\nYour Rideexapp order #${rider_code} is out for delivery and will arrive soon.`,
-    delivered: `Bon appétit! 😋\nYour Rideexapp order #${rider_code} has been successfully delivered.\nThanks for choosing Rideexapp`,
-    cancelled: `Hey there! 👋\nYour order #${rider_code} has been canceled.\nIf you were charged, don't worry—a refund is on the way\nNeed help? Open the Rideexapp to reorder or contact support.`,
+    confirmed: `Yay!  Your order #${rider_code} is confirmed.\nWe've received it and the restaurant is preparing your food.`,
+    out_for_delivery: `It's on the way!  \nYour Rideexapp order #${rider_code} is out for delivery and will arrive soon.`,
+    delivered: `Bon appétit! \nYour Rideexapp order #${rider_code} has been successfully delivered.\nThanks for choosing Rideexapp`,
+    cancelled: `Hi! Order #${rider_code} canceled. If charged, refund is on the way. Reorder in Rideexapp or contact support for help.`,
   };
   return messages[status] || null;
 }
@@ -172,6 +172,7 @@ export const updateBookedOrderAsync = createAsyncThunk<
       );
 
       const updatedOrder = response as unknown as IBookedOrderFetched; 
+
 
       if (orderData.status && updatedOrder.phone) {
         const message = get_sms_message(

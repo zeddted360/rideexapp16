@@ -81,7 +81,9 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
         </Button>
 
         {isSearchVisible && (
-          <div className="absolute top-full left-0 right-0 mt-3 transition-all duration-300 ease-out z-40"> {/* Increased z-index */}
+          <div className="absolute top-full left-0 right-0 mt-3 transition-all duration-300 ease-out z-40">
+            {" "}
+            {/* Increased z-index */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-orange-600/10 rounded-2xl blur-sm" />
               <div className="relative bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-orange-200/50 dark:border-orange-700/50 rounded-2xl shadow-2xl w-[400px] mx-auto md:mr-10">
@@ -113,9 +115,10 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
                 )}
               </div>
             </div>
-
             {isSearchOpen && searchResults.length > 0 && (
-              <div className="w-[400px] mx-auto md:mr-10 top-full left-0 right-0 mt-3 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 max-h-96 overflow-y-auto z-10 relative"> {/* Adjusted z-index relative to parent */}
+              <div className="w-[400px] mx-auto md:mr-10 top-full left-0 right-0 mt-3 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 max-h-96 overflow-y-auto z-10 relative">
+                {" "}
+                {/* Adjusted z-index relative to parent */}
                 <div className="p-3">
                   <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 px-2">
                     {searchResults.length} result
@@ -124,12 +127,18 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
                   {searchResults.map((result, index) => (
                     <div
                       key={`${result.type}-${result.id}`}
-                      className={`w-full p-3 rounded-xl transition-all duration-200 cursor-pointer ${
+                      className={`w-full p-3 rounded-xl transition-all duration-200 cursor-pointer  ${
                         index === selectedIndex
                           ? "bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-700"
                           : "hover:bg-gray-50 dark:hover:bg-gray-700/50 border border-transparent"
                       }`}
-                      onClick={() => handleResultClick(result)} // Added direct click for better UX
+                      onClick={() => {
+                        handleResultClick(result);
+                        console.log(
+                          "The result of search on desktop is : ",
+                          result,
+                        );
+                      }}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-gray-100 dark:ring-gray-700">
@@ -197,7 +206,10 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
                             {result.type !== "restaurant" && (
                               <button
                                 onClick={async (e) => {
-                                  console.log("the result clicked is :", result)
+                                  console.log(
+                                    "the result clicked is :",
+                                    result,
+                                  );
                                   e.preventDefault();
                                   e.stopPropagation();
                                   await handleAddToCart(result);

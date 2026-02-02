@@ -30,6 +30,8 @@ export async function POST(request: Request) {
     const { databaseId, userCollectionId, recoveryTokensCollectionId } =
       validateServerEnv();
 
+      console.log("The recovery token collection id is :", recoveryTokensCollectionId);
+
     // Search ONLY by email (case-insensitive if your collection allows, but Appwrite is case-sensitive by default)
     const users = await databases.listDocuments(databaseId, userCollectionId, [
       Query.equal("email", trimmedEmail),

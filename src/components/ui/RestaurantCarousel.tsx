@@ -9,7 +9,7 @@ import { isOpen } from "@/utils/isOpen";
 interface RestaurantCarouselProps {
   restaurants: IRestaurantFetched[];
   loading: string;
-  error?: string;
+  error: string | null;
   onSelectRestaurant: (restaurant: IRestaurantFetched) => void;
 }
 
@@ -27,6 +27,7 @@ const RestaurantCardSkeleton = () => (
 const RestaurantCarousel: React.FC<RestaurantCarouselProps> = ({ restaurants, loading, error, onSelectRestaurant }) => {
   const [search, setSearch] = useState("");
   const filtered = restaurants.filter(r => r.name.toLowerCase().includes(search.toLowerCase())).filter(r => r.isPaused !== true);
+
 
  
   return (

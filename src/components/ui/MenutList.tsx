@@ -15,6 +15,8 @@ const MenuList = () => {
     (state: RootState) => state.menuItem
   );
 
+  console.log("The menu items are :", menuItems);
+  
   useEffect(() => {
     if (loading === "idle") {
       dispatch(listAsyncMenusItem());

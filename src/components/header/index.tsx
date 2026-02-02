@@ -43,15 +43,17 @@ const Header = () => {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isAddingToCart, setIsAddingToCart] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const searchRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const desktopSearchRef = useRef<HTMLDivElement | null>(null);
+  const mobileSearchRef = useRef<HTMLDivElement | null>(null);
+  const desktopInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Get data from Redux store
   const { restaurants } = useSelector((state: RootState) => state.restaurant);
   const { menuItems } = useSelector((state: RootState) => state.menuItem);
   const { popularItems } = useSelector((state: RootState) => state.popularItem);
   const { featuredItems } = useSelector(
-    (state: RootState) => state.featuredItem
+    (state: RootState) => state.featuredItem,
   );
   const { orders } = useSelector((state: RootState) => state.orders);
   const { user, isAuthenticated, role } = useAuth();
@@ -59,7 +61,7 @@ const Header = () => {
   const cartItems = orders || [];
   const { currentLanguage, changeLanguage, isLanguageLoading } = useLanguage();
   const { t } = useTranslation();
-  const {setItem, setIsOpen} = useShowCart();
+  const { setItem, setIsOpen } = useShowCart();
 
   useEffect(() => {
     setIsClient(true);
@@ -92,13 +94,13 @@ const Header = () => {
           id: restaurant.$id,
           name: restaurant.name,
           type: "restaurant",
-          image: restaurant.logo, // Use logo as image for restaurants
+          image: restaurant.logo,
           description: restaurant.description,
           category: restaurant.category,
           rating: restaurant.rating,
           deliveryTime: restaurant.deliveryTime,
           distance: restaurant.distance,
-          slug: restaurant.name, // Use name directly for slug (to match page query by name)
+          slug: restaurant.name,
         });
       }
     });
@@ -119,7 +121,7 @@ const Header = () => {
           description: item.description,
           category: item.category,
           restaurantName: item.restaurantName,
-          restaurantId: item.restaurantId || "unknown", // Assume available or fallback
+          restaurantId: item.restaurantId || "unknown",
         });
       }
     });
@@ -132,7 +134,7 @@ const Header = () => {
         item.category?.toLowerCase().includes(query)
       ) {
         results.push({
-          id: item.$id || String(item.id), // Ensure string, fallback to 'undefined' if both missing but unlikely
+          id: item.$id || String(item.id),
           name: item.name,
           type: "popular",
           image: item.image,
@@ -153,14 +155,15 @@ const Header = () => {
         item.category?.toLowerCase().includes(query)
       ) {
         results.push({
-          id: item.$id, // Assuming $id always present for fetched items
+          id: item.$id,
           name: item.name,
           type: "featured",
           image: item.image,
           price: item.price,
           description: item.description,
           category: item.category,
-          restaurantName: item.restaurantName || `Featured from ${item.restaurant}`,
+          restaurantName:
+            item.restaurantName || `Featured from ${item.restaurant}`,
           restaurantId: item.restaurant || "unknown",
         });
       }
@@ -188,13 +191,13 @@ const Header = () => {
         case "ArrowDown":
           e.preventDefault();
           setSelectedIndex((prev) =>
-            prev < searchResults.length - 1 ? prev + 1 : 0
+            prev < searchResults.length - 1 ? prev + 1 : 0,
           );
           break;
         case "ArrowUp":
           e.preventDefault();
           setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : searchResults.length - 1
+            prev > 0 ? prev - 1 : searchResults.length - 1,
           );
           break;
         case "Enter":
@@ -217,10 +220,15 @@ const Header = () => {
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchRef.current &&
-        !searchRef.current.contains(event.target as Node)
-      ) {
+      const targetNode = event.target as Node;
+      const clickedInsideDesktop =
+        !!desktopSearchRef.current &&
+        desktopSearchRef.current.contains(targetNode);
+      const clickedInsideMobile =
+        !!mobileSearchRef.current &&
+        mobileSearchRef.current.contains(targetNode);
+
+      if (!clickedInsideDesktop && !clickedInsideMobile) {
         setIsSearchOpen(false);
         setSelectedIndex(-1);
       }
@@ -234,7 +242,9 @@ const Header = () => {
     setIsSearchVisible(!isSearchVisible);
     if (!isSearchVisible) {
       setTimeout(() => {
-        inputRef.current?.focus();
+        const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+        const activeInputRef = isDesktop ? desktopInputRef : mobileInputRef;
+        activeInputRef.current?.focus();
       }, 100);
     } else {
       setSearchQuery("");
@@ -252,12 +262,12 @@ const Header = () => {
     switch (result.type) {
       case "restaurant":
         // Use encoded name for slug route to match page query by name
-        router.push(`/restaurant/${encodeURIComponent(result.slug as string)}`);
+        router.push(`/restaurant/${result.id}`);
         break;
       case "menu":
       case "popular":
       case "featured":
-        router.push(`/menu`); 
+        router.push(`/menu`);
         break;
     }
   };
@@ -359,12 +369,10 @@ const Header = () => {
     if (user?.userId && user.userId.startsWith("guest")) {
       if (orders) {
         const guestOrders = orders.filter(
-          (order) => order.userId === user.userId
+          (order) => order.userId === user.userId,
         );
         await Promise.all(
-          guestOrders.map((order) =>
-            dispatch(deleteOrderAsync(order.$id))
-          )
+          guestOrders.map((order) => dispatch(deleteOrderAsync(order.$id))),
         );
       }
     }
@@ -420,8 +428,8 @@ const Header = () => {
             isSearchOpen={isSearchOpen}
             selectedIndex={selectedIndex}
             isAddingToCart={isAddingToCart}
-            inputRef={inputRef}
-            searchRef={searchRef}
+            inputRef={desktopInputRef}
+            searchRef={desktopSearchRef}
             handleSearchToggle={handleSearchToggle}
             isSearchVisible={isSearchVisible}
             handleResultClick={handleResultClick}
@@ -462,8 +470,8 @@ const Header = () => {
           selectedIndex={selectedIndex}
           isAddingToCart={isAddingToCart}
           isSearchVisible={isSearchVisible}
-          inputRef={inputRef}
-          searchRef={searchRef}
+          inputRef={mobileInputRef}
+          searchRef={mobileSearchRef}
           handleSearchToggle={handleSearchToggle}
           handleResultClick={handleResultClick}
           handleAddToCart={handleAddToCart}

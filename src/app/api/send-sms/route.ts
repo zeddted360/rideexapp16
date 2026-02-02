@@ -11,14 +11,14 @@ export async function POST(request: NextRequest) {
     if (!to || !message) {
       return NextResponse.json(
         { error: "Missing required fields: to (phone number) and message" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (message.length > 160 || message.length === 0) {
       return NextResponse.json(
         { error: "Invalid message length (1-160 chars)" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
           error:
             "Missing required field: adminMessage (when adminNumber is provided)",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Invalid adminMessage length (1-160 chars)" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           error:
             "Invalid phone number format (use Nigerian number, e.g., 08012345678)",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
           error:
             "Invalid admin phone number format (use Nigerian number, e.g., 08012345678)",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       console.error("Missing env vars: SMART_SMS_TOKEN or SMART_SMS_SENDER_ID");
       return NextResponse.json(
         { error: "Server configuration error" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         formatNigerianPhone(adminNumber),
         adminMessage,
         token,
-        senderId
+        senderId,
       );
     }
 
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     console.error("Error in /api/send-sms:", error);
     return NextResponse.json(
       { error: "Failed to send SMS: " + (error as Error).message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -111,7 +111,7 @@ async function sendSMSToNumber(
   to: string,
   message: string,
   token: string,
-  senderId: string
+  senderId: string,
 ) {
   const formData = new FormData();
   formData.append("token", token);
@@ -126,11 +126,10 @@ async function sendSMSToNumber(
     {
       method: "POST",
       body: formData,
-    }
+    },
   );
 
   const text = await response.text();
-
 
   const isSuccess =
     text.includes("OK") ||

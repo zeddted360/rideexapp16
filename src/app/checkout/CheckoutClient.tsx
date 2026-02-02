@@ -663,9 +663,7 @@ export default function CheckoutClient() {
       );
       dispatch(resetOrders());
       // message to be sent to the customer
-      const customerMessage = `Yay! 🎉 Thank you for choosing RideEx! Your order #${riderCode} is confirmed & now ${placedOrder.status
-        .replace(/_/g, " ")
-        .toLowerCase()}. We'll keep you updated!`;
+      const customerMessage = `Yum! Order received. \nWe're confirming availability with the restaurant now.`;
 
       // mssage to be sent to the admin
       const adminMessage = `Admin Alert: Order #${riderCode} for ${

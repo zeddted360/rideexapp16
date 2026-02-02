@@ -6,6 +6,8 @@ import { MenuItemFormData } from "../utils/schema";
 import { databases, storage, validateEnv } from "../utils/appwrite";
 
 interface IMenuItemProp {
+  menuItemsByRestaurant: Record<string, IMenuItemFetched[]>;
+  currentRestaurantId: string | null;
   menuItems: IMenuItemFetched[];
   loading: "idle" | "pending" | "succeeded" | "failed";
   error: string | null;
@@ -13,6 +15,8 @@ interface IMenuItemProp {
 
 const initialState: IMenuItemProp = {
   menuItems: [],
+  menuItemsByRestaurant: {}, 
+  currentRestaurantId: null,
   loading: "idle",
   error: null,
 };
@@ -30,7 +34,7 @@ export const createAsyncMenuItem = createAsyncThunk<
     const imageFile = await storage.createFile(
       menuBucketId,
       ID.unique(),
-      data.image[0] as File
+      data.image[0] as File,
     );
     const createdDocument = await databases.createDocument(
       databaseId,
@@ -49,7 +53,7 @@ export const createAsyncMenuItem = createAsyncThunk<
         extras: data.extras || [],
         needsTakeawayContainer: data.needsTakeawayContainer,
         extraPortion: data.extraPortion,
-      }
+      },
     );
 
     toast.success("Menu item created successfully!"); // Optional: Specific success toast
@@ -58,7 +62,7 @@ export const createAsyncMenuItem = createAsyncThunk<
     const errorMsg =
       error instanceof Error ? error.message : "Failed to create menu item";
     toast.error(
-      `Failed to create menu item: ${errorMsg}. Check extras IDs if provided.`
+      `Failed to create menu item: ${errorMsg}. Check extras IDs if provided.`,
     );
     console.log(errorMsg);
     return rejectWithValue(errorMsg);
@@ -78,7 +82,7 @@ export const listAsyncMenusItem = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       menuItemsCollectionId,
-      [Query.orderDesc("$createdAt")]
+      [Query.limit(100), Query.orderDesc("$createdAt")],
     );
     return response.documents as unknown as IMenuItemFetched[];
   } catch (error) {
@@ -89,126 +93,177 @@ export const listAsyncMenusItem = createAsyncThunk<
   }
 });
 
-// Function to update a menu item
-export const updateAsyncMenuItem = createAsyncThunk<
-  IMenuItemFetched,
-  { itemId: string; data: Partial<MenuItemFormData & { extras?: string[] }>; newImage?: File | null },  // Updated to accept extras
+// New: Fetch menus for a specific restaurant
+export const fetchMenuItemsByRestaurant = createAsyncThunk<
+  IMenuItemFetched[],
+  string, // restaurantId
   { rejectValue: string }
->("menuItem/updateMenuItem", async ({ itemId, data, newImage }, { rejectWithValue }) => {
+>("menuItem/fetchByRestaurant", async (restaurantId, { rejectWithValue }) => {
   try {
-    const { databaseId, menuItemsCollectionId, menuBucketId } = validateEnv();
-    let updateData = { 
-      ...data,
-      extras: data.extras !== undefined ? data.extras : null,  
-    };
+    const { databaseId, menuItemsCollectionId } = validateEnv();
 
-    if (newImage) {
-      // Upload new image
-      const imageFile = await storage.createFile(
-        menuBucketId,
-        ID.unique(),
-        newImage
-      );
-      updateData.image = imageFile.$id;
-    }
-
-    const updatedDocument = await databases.updateDocument(
+    const response = await databases.listDocuments(
       databaseId,
       menuItemsCollectionId,
-      itemId,
-      updateData
+      [
+        Query.equal("restaurantId", restaurantId),
+        Query.limit(100),
+        Query.orderAsc("$createdAt"),
+      ],
     );
 
-    toast.success("Menu item updated successfully!");  // Optional: Specific success toast
-    return updatedDocument as unknown as IMenuItemFetched;
+
+    return response.documents as unknown as IMenuItemFetched[];
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    toast.error(`Failed to update menu item: ${errorMsg}. Check extras IDs if provided.`);
+    const errorMsg =
+      error instanceof Error ? error.message : "Failed to load menu items";
     return rejectWithValue(errorMsg);
   }
 });
+
+// Function to update a menu item
+export const updateAsyncMenuItem = createAsyncThunk<
+  IMenuItemFetched,
+  {
+    itemId: string;
+    data: Partial<MenuItemFormData & { extras?: string[] }>;
+    newImage?: File | null;
+  }, // Updated to accept extras
+  { rejectValue: string }
+>(
+  "menuItem/updateMenuItem",
+  async ({ itemId, data, newImage }, { rejectWithValue }) => {
+    try {
+      const { databaseId, menuItemsCollectionId, menuBucketId } = validateEnv();
+      let updateData = {
+        ...data,
+        extras: data.extras !== undefined ? data.extras : null,
+      };
+
+      if (newImage) {
+        // Upload new image
+        const imageFile = await storage.createFile(
+          menuBucketId,
+          ID.unique(),
+          newImage,
+        );
+        updateData.image = imageFile.$id;
+      }
+
+      const updatedDocument = await databases.updateDocument(
+        databaseId,
+        menuItemsCollectionId,
+        itemId,
+        updateData,
+      );
+
+      toast.success("Menu item updated successfully!"); // Optional: Specific success toast
+      return updatedDocument as unknown as IMenuItemFetched;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(
+        `Failed to update menu item: ${errorMsg}. Check extras IDs if provided.`,
+      );
+      return rejectWithValue(errorMsg);
+    }
+  },
+);
 
 // Function to approve/update approval status of a menu item
 export const updateApprovalAsyncMenuItem = createAsyncThunk<
   IMenuItemFetched,
   { itemId: string; isApproved: boolean },
   { rejectValue: string }
->("menuItem/updateApprovalMenuItem", async ({ itemId, isApproved }, { rejectWithValue }) => {
-  try {
-    const { databaseId, menuItemsCollectionId } = validateEnv();
+>(
+  "menuItem/updateApprovalMenuItem",
+  async ({ itemId, isApproved }, { rejectWithValue }) => {
+    try {
+      const { databaseId, menuItemsCollectionId } = validateEnv();
 
-    const updatedDocument = await databases.updateDocument(
-      databaseId,
-      menuItemsCollectionId,
-      itemId,
-      { isApproved }
-    );
+      const updatedDocument = await databases.updateDocument(
+        databaseId,
+        menuItemsCollectionId,
+        itemId,
+        { isApproved },
+      );
 
-    const status = isApproved ? "approved" : "rejected";
-    toast.success(`Menu item ${status} successfully!`);
-    return updatedDocument as unknown as IMenuItemFetched;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    toast.error(`Failed to update menu item approval: ${errorMsg}`);
-    return rejectWithValue(errorMsg);
-  }
-});
+      const status = isApproved ? "approved" : "rejected";
+      toast.success(`Menu item ${status} successfully!`);
+      return updatedDocument as unknown as IMenuItemFetched;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to update menu item approval: ${errorMsg}`);
+      return rejectWithValue(errorMsg);
+    }
+  },
+);
 
 // Function to delete a menu item
 export const deleteAsyncMenuItem = createAsyncThunk<
   string,
   { itemId: string; imageId: string },
   { rejectValue: string }
->("menuItem/deleteMenuItem", async ({ itemId, imageId }, { rejectWithValue }) => {
-  try {
-    const { databaseId, menuItemsCollectionId, menuBucketId } = validateEnv();
+>(
+  "menuItem/deleteMenuItem",
+  async ({ itemId, imageId }, { rejectWithValue }) => {
+    try {
+      const { databaseId, menuItemsCollectionId, menuBucketId } = validateEnv();
 
-    // Delete image if exists
-    if (imageId) {
-      await storage.deleteFile(menuBucketId, imageId);
+      // Delete image if exists
+      if (imageId) {
+        await storage.deleteFile(menuBucketId, imageId);
+      }
+
+      // Delete document
+      await databases.deleteDocument(databaseId, menuItemsCollectionId, itemId);
+
+      toast.success("Menu item deleted successfully!"); // Optional: Specific success toast
+      return itemId;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to delete menu item: ${errorMsg}`);
+      return rejectWithValue(errorMsg);
     }
-
-    // Delete document
-    await databases.deleteDocument(databaseId, menuItemsCollectionId, itemId);
-
-    toast.success("Menu item deleted successfully!");  // Optional: Specific success toast
-    return itemId;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    toast.error(`Failed to delete menu item: ${errorMsg}`);
-    return rejectWithValue(errorMsg);
-  }
-});
+  },
+);
 
 export const togglePauseMenuItem = createAsyncThunk<
   IMenuItemFetched,
   { itemId: string; isPaused: boolean },
   { rejectValue: string }
->("menuItem/togglePauseMenuItem", async ({ itemId, isPaused }, { rejectWithValue }) => {
-  try {
-    const { databaseId, menuItemsCollectionId } = validateEnv();
+>(
+  "menuItem/togglePauseMenuItem",
+  async ({ itemId, isPaused }, { rejectWithValue }) => {
+    try {
+      const { databaseId, menuItemsCollectionId } = validateEnv();
 
-    const updatedDocument = await databases.updateDocument(
-      databaseId,
-      menuItemsCollectionId,
-      itemId,
-      { isPaused }
-    );
+      const updatedDocument = await databases.updateDocument(
+        databaseId,
+        menuItemsCollectionId,
+        itemId,
+        { isPaused },
+      );
 
-    toast.success(`Menu item ${isPaused ? "paused" : "resumed"} successfully!`);
-    return updatedDocument as unknown as IMenuItemFetched;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error";
-    toast.error(`Failed to toggle pause for menu item: ${errorMsg}`);
-    return rejectWithValue(errorMsg);
-  }
-});
-
+      toast.success(
+        `Menu item ${isPaused ? "paused" : "resumed"} successfully!`,
+      );
+      return updatedDocument as unknown as IMenuItemFetched;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to toggle pause for menu item: ${errorMsg}`);
+      return rejectWithValue(errorMsg);
+    }
+  },
+);
 
 export const menuSlice = createSlice({
   name: "menuItem",
   initialState,
-  reducers: {},
+  reducers: {
+    setCurrentRestaurant: (state, action: PayloadAction<string | null>) => {
+      state.currentRestaurantId = action.payload;
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(createAsyncMenuItem.pending, (state) => {
@@ -221,14 +276,14 @@ export const menuSlice = createSlice({
           state.loading = "succeeded";
           state.menuItems = [...state.menuItems, action.payload];
           state.error = null;
-        }
+        },
       )
       .addCase(
         createAsyncMenuItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to create menu item";
-        }
+        },
       )
       // handle list menuItems Case
       .addCase(listAsyncMenusItem.pending, (state) => {
@@ -241,14 +296,14 @@ export const menuSlice = createSlice({
           state.loading = "succeeded";
           state.menuItems = action.payload;
           state.error = null;
-        }
+        },
       )
       .addCase(
         listAsyncMenusItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to fetch menu items";
-        }
+        },
       )
       // Update
       .addCase(updateAsyncMenuItem.pending, (state) => {
@@ -260,20 +315,20 @@ export const menuSlice = createSlice({
         (state, action: PayloadAction<IMenuItemFetched>) => {
           state.loading = "succeeded";
           const index = state.menuItems.findIndex(
-            (item) => item.$id === action.payload.$id
+            (item) => item.$id === action.payload.$id,
           );
           if (index !== -1) {
             state.menuItems[index] = action.payload;
           }
           state.error = null;
-        }
+        },
       )
       .addCase(
         updateAsyncMenuItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to update menu item";
-        }
+        },
       )
       // Update Approval
       .addCase(updateApprovalAsyncMenuItem.pending, (state) => {
@@ -285,20 +340,20 @@ export const menuSlice = createSlice({
         (state, action: PayloadAction<IMenuItemFetched>) => {
           state.loading = "succeeded";
           const index = state.menuItems.findIndex(
-            (item) => item.$id === action.payload.$id
+            (item) => item.$id === action.payload.$id,
           );
           if (index !== -1) {
             state.menuItems[index] = action.payload;
           }
           state.error = null;
-        }
+        },
       )
       .addCase(
         updateApprovalAsyncMenuItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to update menu item approval";
-        }
+        },
       )
       // Delete
       .addCase(deleteAsyncMenuItem.pending, (state) => {
@@ -310,17 +365,17 @@ export const menuSlice = createSlice({
         (state, action: PayloadAction<string>) => {
           state.loading = "succeeded";
           state.menuItems = state.menuItems.filter(
-            (item) => item.$id !== action.payload
+            (item) => item.$id !== action.payload,
           );
           state.error = null;
-        }
+        },
       )
       .addCase(
         deleteAsyncMenuItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to delete menu item";
-        }
+        },
       )
       .addCase(togglePauseMenuItem.pending, (state) => {
         state.loading = "pending";
@@ -331,24 +386,30 @@ export const menuSlice = createSlice({
         (state, action: PayloadAction<IMenuItemFetched>) => {
           state.loading = "succeeded";
           const index = state.menuItems.findIndex(
-            (d) => d.$id === action.payload.$id
+            (d) => d.$id === action.payload.$id,
           );
           if (index !== -1) {
             state.menuItems[index] = action.payload;
           }
           state.error = null;
-        }
+        },
       )
       .addCase(
         togglePauseMenuItem.rejected,
         (state, action: PayloadAction<string | undefined>) => {
           state.loading = "failed";
           state.error = action.payload || "Failed to toggle pause discount";
+        },
+      )
+      .addCase(fetchMenuItemsByRestaurant.fulfilled, (state, action) => {
+        state.loading = "succeeded";
+        if (state.currentRestaurantId) {
+          state.menuItemsByRestaurant[state.currentRestaurantId] =
+            action.payload;
         }
-      );
-
-
+      });
   },
 });
 
+export const { setCurrentRestaurant } = menuSlice.actions;
 export default menuSlice.reducer;
