@@ -108,10 +108,10 @@ export default function CheckoutClient() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const dialogAutocompleteInput = useRef<HTMLInputElement | null>(null);
   const dialogAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(
-    null
+    null,
   );
   const autocompleteListenerRef = useRef<google.maps.MapsEventListener | null>(
-    null
+    null,
   );
   const prevPaymentMethodRef = useRef<PaymentMethod>("card");
   const dispatch = useDispatch<AppDispatch>();
@@ -130,17 +130,34 @@ export default function CheckoutClient() {
 
   const subtotal = useMemo(
     () => filteredOrders.reduce((sum, item) => sum + (item.totalPrice || 0), 0),
-    [filteredOrders]
+    [filteredOrders],
   );
+
+  
+  const estDeliveryDisplay = useMemo(() => {
+    if (isCalculatingFee) {
+      return (
+        <span className="flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+          Calculating...
+        </span>
+      );
+    }
+    if (!deliveryDuration || !address.trim()) {
+      return "Enter address to see estimate";
+    }
+    return deliveryDuration; 
+  }, [isCalculatingFee, deliveryDuration, address]);
+
   const timeSlots = useMemo(
     () => (deliveryDay === "today" ? generateTimeSlots() : []),
-    [deliveryDay]
+    [deliveryDay],
   );
   const { googleMapsApiKey } = validateEnv();
 
   const effectiveDeliveryFee = paymentMethod === "cash" ? 0 : deliveryFee;
 
-  // Add service charge (always applied, even for cash)
+ 
   const totalAmount = subtotal + effectiveDeliveryFee + SERVICE_CHARGE;
 
   const {
@@ -152,7 +169,7 @@ export default function CheckoutClient() {
   // Memoized branch data
   const selectedBranchData = useMemo(
     () => branches.find((b) => b.id === selectedBranch),
-    [selectedBranch]
+    [selectedBranch],
   );
 
   // Debounce address using standard useEffect
@@ -188,7 +205,7 @@ export default function CheckoutClient() {
         (err) => {
           console.error("Geolocation error:", err);
         },
-        { enableHighAccuracy: true, maximumAge: 0 }
+        { enableHighAccuracy: true, maximumAge: 0 },
       );
     }
   }, []);
@@ -202,7 +219,7 @@ export default function CheckoutClient() {
       {
         types: ["geocode"],
         componentRestrictions: { country: "ng" },
-      }
+      },
     );
 
     autocompleteListenerRef.current = dialogAutocompleteRef.current.addListener(
@@ -221,7 +238,7 @@ export default function CheckoutClient() {
           setSelectedPlace(place);
           setLastPickedAddress(place.name);
         }
-      }
+      },
     );
   }, []);
 
@@ -229,7 +246,7 @@ export default function CheckoutClient() {
   useEffect(() => {
     if (!googleMapsApiKey) {
       handleError(
-        "Google Maps API key is missing. Please enter address manually."
+        "Google Maps API key is missing. Please enter address manually.",
       );
       setManualMode(true);
       return;
@@ -249,7 +266,7 @@ export default function CheckoutClient() {
       })
       .catch(() => {
         handleError(
-          "Failed to load Google Maps. Please enter address manually."
+          "Failed to load Google Maps. Please enter address manually.",
         );
         setManualMode(true);
       });
@@ -272,7 +289,7 @@ export default function CheckoutClient() {
         const doc = (await databases.getDocument(
           databaseId,
           restaurantsCollectionId,
-          restaurantId
+          restaurantId,
         )) as IRestaurantFetched;
         setRestaurant(doc);
         setRestaurantAddresses({ [restaurantId]: doc.addresses || [] });
@@ -309,12 +326,12 @@ export default function CheckoutClient() {
       setIsCalculatingFee(true);
       try {
         const origin = encodeURIComponent(
-          selectedBranchData.address + ", Nigeria"
+          selectedBranchData.address + ", Nigeria",
         );
         const destination = encodeURIComponent(debouncedAddress + ", Nigeria");
 
         const res = await fetch(
-          `/api/distance-matrix?origins=${origin}&destinations=${destination}`
+          `/api/distance-matrix?origins=${origin}&destinations=${destination}`,
         );
         const data = await res.json();
 
@@ -382,7 +399,7 @@ export default function CheckoutClient() {
           const userDoc = await databases.getDocument(
             databaseId,
             userCollectionId,
-            userData.$id
+            userData.$id,
           );
           if (Array.isArray(userDoc.address)) {
             setUserAddresses(userDoc.address);
@@ -422,7 +439,7 @@ export default function CheckoutClient() {
         userData.$id,
         {
           address: updatedAddresses,
-        }
+        },
       );
       setUserAddresses(updatedAddresses);
       setAddress(newAddress);
@@ -499,7 +516,7 @@ export default function CheckoutClient() {
         handleError("Failed to send notification.");
       }
     },
-    [dispatch, handleError]
+    [dispatch, handleError],
   );
 
   // Handle add address
@@ -518,7 +535,7 @@ export default function CheckoutClient() {
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(phoneNumber)) {
       handleError(
-        "Please enter a valid phone number in E.164 format (e.g., +234XXXXXXXXX)."
+        "Please enter a valid phone number in E.164 format (e.g., +234XXXXXXXXX).",
       );
       return;
     }
@@ -550,7 +567,7 @@ export default function CheckoutClient() {
     if (!address || !phoneNumber || !hasItems) {
       handleError(
         "Please add a delivery address, phone number, and items to your cart.",
-        true
+        true,
       );
       return;
     }
@@ -579,7 +596,7 @@ export default function CheckoutClient() {
     if (paymentMethod === "cash" && subtotal < deliveryFee) {
       handleError(
         "Order value must be at least equal to delivery fee amount. Please add more items to your cart to continue.",
-        true
+        true,
       );
       return;
     }
@@ -599,7 +616,7 @@ export default function CheckoutClient() {
               ?.map((extra: ISelectedExtra | string) => {
                 try {
                   const parsedExtra: ISelectedExtra = JSON.parse(
-                    extra as string
+                    extra as string,
                   );
                   return `${parsedExtra.extraId}_${parsedExtra.quantity}`;
                 } catch (e) {
@@ -610,7 +627,7 @@ export default function CheckoutClient() {
               .filter((id): id is string => id !== null) || [],
           priceAtOrder: cartItem.price,
           specialInstructions: cartItem.specialInstructions || "",
-        })
+        }),
       );
 
       const order = {
@@ -624,7 +641,7 @@ export default function CheckoutClient() {
         deliveryTime: getDeliveryTimeLabel(
           deliveryDay,
           selectedTimeSlot,
-          timeSlots
+          timeSlots,
         ),
         createdAt: new Date().toISOString(),
         total: subtotal + deliveryFee + SERVICE_CHARGE,
@@ -648,7 +665,7 @@ export default function CheckoutClient() {
         databaseId,
         bookedOrdersCollectionId,
         orderId,
-        order
+        order,
       );
 
       await Promise.all([
@@ -658,8 +675,8 @@ export default function CheckoutClient() {
 
       await Promise.all(
         filteredOrders.map((item: ICartItemFetched) =>
-          dispatch(deleteOrderAsync(item.$id))
-        )
+          dispatch(deleteOrderAsync(item.$id)),
+        ),
       );
       dispatch(resetOrders());
       // message to be sent to the customer
@@ -676,7 +693,7 @@ export default function CheckoutClient() {
         number: formatNigerianPhone(phoneNumber),
         message: customerMessage,
         adminNumber: formatNigerianPhone(
-          process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418"
+          process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418",
         ),
         adminMessage: adminMessage,
       });
@@ -691,7 +708,7 @@ export default function CheckoutClient() {
         `Failed to place order: ${
           err instanceof Error ? err.message : "Unknown error"
         }`,
-        true
+        true,
       );
     } finally {
       setIsOrderLoading(false);
@@ -743,14 +760,14 @@ export default function CheckoutClient() {
         )}
 
         <div className="w-full max-w-6xl mb-8">
-          {restaurant ? (
+          {restaurant && (
             <div className="flex items-center gap-4 bg-white/95 dark:bg-gray-900/90 rounded-2xl shadow-xl border border-orange-100 dark:border-gray-800 p-6">
               {restaurant.logo && (
                 <div className="w-16 h-16 relative flex-shrink-0">
                   <Image
                     src={fileUrl(
                       validateEnv().restaurantBucketId,
-                      restaurant.logo as string
+                      restaurant.logo as string,
                     )}
                     alt={restaurant.name}
                     className="w-full h-full object-cover rounded-full"
@@ -765,21 +782,14 @@ export default function CheckoutClient() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   Checkout from {restaurant.name}
                 </h1>
-                {restaurant.deliveryTime && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Est. delivery: {restaurant.deliveryTime}
-                  </p>
-                )}
+                {/* ←←← REPLACED BLOCK STARTS HERE */}
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1.5">
+                  Est. delivery: {estDeliveryDisplay}
+                </p>
+                {/* ←←← REPLACED BLOCK ENDS HERE */}
               </div>
             </div>
-          ) : restaurantId ? (
-            <div className="bg-white/95 dark:bg-gray-900/90 rounded-2xl shadow-xl border border-orange-100 dark:border-gray-800 p-6 text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto text-orange-500 mb-3" />
-              <p className="text-gray-600 dark:text-gray-400">
-                Loading restaurant details...
-              </p>
-            </div>
-          ) : null}
+          )}
         </div>
 
         {!restaurantId ? (

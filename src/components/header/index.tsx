@@ -127,6 +127,7 @@ const Header = () => {
     });
 
     // Search popular items
+
     popularItems.forEach((item: any) => {
       if (
         item.name.toLowerCase().includes(query) ||
@@ -252,26 +253,7 @@ const Header = () => {
     }
   };
 
-  const handleResultClick = (result: ISearchResult) => {
-    // Immediately close all search UI
-    setIsSearchOpen(false);
-    setSearchQuery("");
-    setSelectedIndex(-1);
-    setIsSearchVisible(false);
-
-    switch (result.type) {
-      case "restaurant":
-        // Use encoded name for slug route to match page query by name
-        router.push(`/restaurant/${result.id}`);
-        break;
-      case "menu":
-      case "popular":
-      case "featured":
-        router.push(`/menu`);
-        break;
-    }
-  };
-
+  
   const handleAddToCart = async (result: ISearchResult) => {
     if (result.type === "restaurant") return;
     if (!userId) {
@@ -310,6 +292,31 @@ const Header = () => {
       setIsAddingToCart(null); // Reset loading
     });
   };
+
+  const handleResultClick = (result: ISearchResult) => {
+  // Close search UI immediately
+  setIsSearchOpen(false);
+  setSearchQuery("");
+  setSelectedIndex(-1);
+  setIsSearchVisible(false);
+
+  if (result.type === "restaurant") {
+    router.push(`/restaurant/${result.id}`);
+    return;
+  }
+
+  // Food item (menu / popular / featured)
+  const params = new URLSearchParams();
+  if (result.restaurantId && result.restaurantId !== "unknown") {
+    params.set("restaurantId", result.restaurantId);
+  }
+  if (result.id) {
+    params.set("itemId", result.id);
+  }
+
+  const url = `/menu${params.toString() ? `?${params.toString()}` : ""}`;
+  router.push(url);
+};
 
   const getTypeIcon = (type: string) => {
     switch (type) {

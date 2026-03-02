@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Star,
   Clock,
-  MapPin,
   ShoppingCart,
   Loader2,
   ArrowLeft,
@@ -19,7 +18,6 @@ import {
   Timer,
   TimerOff,
   Pause,
-  Phone,
 } from "lucide-react";
 import { IMenuItemFetched, IRestaurantFetched } from "../../../../types/types";
 import { RestaurantMenuItem } from "./RestaurantMenu";
@@ -27,19 +25,21 @@ import { getRestaurantTimesWithCountdown } from "@/utils/getRestaurantTimesWithC
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/state/store";
 import { getAsyncRestaurantById } from "@/state/restaurantSlice";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // shadcn Alert for paused state
+import { useShowCart } from "@/context/showCart";
 
-interface RestaurantPageProps {}
-
-export default function RestaurantPage({}: RestaurantPageProps) {
+export default function RestaurantPage() {
   const { id } = useParams();
   const decodedId = decodeURIComponent(id as string);
   const [restaurant, setRestaurant] = useState<IRestaurantFetched | null>(null);
   const [menuItems, setMenuItems] = useState<IMenuItemFetched[]>([]);
+  const [activeCategory, setActiveCategory] = useState<
+    "all" | "veg" | "non-veg"
+  >("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
   const dispatch = useDispatch<AppDispatch>();
+   const { activeCart, setActiveCart } = useShowCart();
 
   useEffect(() => {
     if (!decodedId) {
@@ -47,29 +47,25 @@ export default function RestaurantPage({}: RestaurantPageProps) {
       setLoading(false);
       return;
     }
-
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        // Fetch restaurant via Redux thunk
         const result = await dispatch(
-          getAsyncRestaurantById(decodedId)
+          getAsyncRestaurantById(decodedId),
         ).unwrap();
         setRestaurant(result);
-
-        // Fetch menu items for this restaurant (only approved ones) - still fetch for display, but disable if paused
         const menuResponse = await databases.listDocuments(
           validateEnv().databaseId,
           validateEnv().menuItemsCollectionId,
-          [Query.equal("restaurantId", result.$id)]
+          [
+            Query.equal("restaurantId", result.$id),
+            Query.equal("isApproved", true),
+            Query.limit(100),
+            Query.orderAsc("$createdAt"),
+          ],
         );
-        setMenuItems(
-          menuResponse.documents.filter(
-            (item) => item.isApproved === true
-          ) as unknown as IMenuItemFetched[]
-        );
+        setMenuItems(menuResponse.documents as unknown as IMenuItemFetched[]);
       } catch (err) {
         console.error("Failed to fetch data:", err);
         setError("Failed to load restaurant data. Please try again.");
@@ -77,45 +73,39 @@ export default function RestaurantPage({}: RestaurantPageProps) {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [decodedId, dispatch]);
 
-  // Update countdown timer every second when restaurant is within 1 hour of opening
   useEffect(() => {
     if (!restaurant) return;
-
     const updateCountdown = () => {
       const { isOpen, countdownToOpen } =
         getRestaurantTimesWithCountdown(restaurant);
-      if (!isOpen && countdownToOpen) {
-        setCountdown(countdownToOpen);
-      } else {
-        setCountdown(null);
-      }
+      setCountdown(!isOpen && countdownToOpen ? countdownToOpen : null);
     };
-
-    updateCountdown(); // Initial call
-    const interval = setInterval(updateCountdown, 1000); // Update every second
-
-    return () => clearInterval(interval); // Cleanup on unmount
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
   }, [restaurant]);
+
+  const filteredMenuItems =
+    activeCategory === "all"
+      ? menuItems
+      : menuItems.filter((item) => item.category === activeCategory);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 mx-auto bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
+      <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-20 h-20 mx-auto mb-8">
+            <div className="absolute inset-0 rounded-full border-2 border-orange-500/20 animate-ping" />
+            <div className="absolute inset-2 rounded-full border-2 border-orange-400/40 animate-ping [animation-delay:200ms]" />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center shadow-[0_0_60px_rgba(249,115,22,0.4)]">
               <Loader2 className="w-8 h-8 animate-spin text-white" />
             </div>
-            <div className="absolute inset-0 w-16 h-16 mx-auto bg-gradient-to-r from-orange-500 to-orange-600 rounded-full animate-ping opacity-20"></div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Loading Restaurant
-          </h3>
-          <p className="text-gray-600 dark:text-gray-300">
-            Please wait while we fetch the details...
+          <p className="text-orange-200/60 text-sm font-light tracking-[0.2em] uppercase">
+            Fetching restaurant
           </p>
         </div>
       </div>
@@ -124,23 +114,20 @@ export default function RestaurantPage({}: RestaurantPageProps) {
 
   if (error || !restaurant) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-md mx-4">
-          <div className="w-16 h-16 mx-auto mb-6 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
-            <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">!</span>
-            </div>
+      <div className="min-h-screen bg-[#0f0e0d] flex items-center justify-center p-4">
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 mx-auto mb-8 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <span className="text-red-400 font-bold text-2xl">!</span>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Oops! Something went wrong
+          <h3 className="text-xl font-semibold text-white mb-3">
+            Something went wrong
           </h3>
-          <p className="text-red-600 dark:text-red-400 mb-6">
+          <p className="text-gray-400 mb-8 text-sm leading-relaxed">
             {error || "Restaurant not found"}
           </p>
           <Link href="/">
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold px-6">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Go Home
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-8 font-medium">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Go Home
             </Button>
           </Link>
         </div>
@@ -153,255 +140,308 @@ export default function RestaurantPage({}: RestaurantPageProps) {
     openTime,
     closeTime,
   } = getRestaurantTimesWithCountdown(restaurant);
-
-  // Check if restaurant is paused
   const isPaused = restaurant.isPaused || false;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      {/* Restaurant Header */}
-      <div className="relative bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-black/10">
+    <div className="min-h-screen bg-[#faf9f7] dark:bg-[#0f0e0d] font-sans">
+      {/* ─── HERO HEADER ─── */}
+      <div className="relative overflow-hidden bg-[#1a0a00]">
+        {/* Mesh background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-950 via-[#1a0a00] to-black" />
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 opacity-30"
             style={{
-              backgroundImage: `radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                              radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)`,
+              backgroundImage: `radial-gradient(ellipse 80% 50% at 20% 110%, rgba(249,115,22,0.4) 0%, transparent 60%),
+                                radial-gradient(ellipse 50% 80% at 80% -10%, rgba(234,88,12,0.3) 0%, transparent 60%)`,
             }}
-          ></div>
+          />
+          {/* Noise grain overlay */}
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+              backgroundSize: "256px 256px",
+            }}
+          />
         </div>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Back Button */}
+        <div className="relative max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 pt-8 pb-16">
+          {/* Back link */}
           <Link
             href="/"
-            className="inline-flex items-center text-orange-100 hover:text-white transition-colors mb-8 group"
+            className="inline-flex items-center gap-2 text-orange-300/60 hover:text-orange-200 transition-colors mb-12 text-sm tracking-wide group"
           >
-            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            Back to restaurants
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+            All restaurants
           </Link>
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8">
-            {/* Restaurant Logo */}
-            <div className="relative">
+          <div className="flex flex-col lg:flex-row items-start lg:items-end gap-10">
+            {/* Logo */}
+            <div className="relative flex-shrink-0">
               <div
-                className={`w-32 h-32 md:w-36 md:h-36 rounded-2xl overflow-hidden flex-shrink-0 shadow-2xl ring-4 ring-white/20 ${
-                  isPaused ? "opacity-70" : ""
-                }`}
+                className={`w-28 h-28 md:w-36 md:h-36 rounded-3xl overflow-hidden shadow-[0_32px_64px_rgba(0,0,0,0.6)] ring-1 ring-white/10 ${isPaused ? "opacity-50 grayscale" : ""}`}
               >
                 <Image
                   src={fileUrl(
                     validateEnv().restaurantBucketId,
-                    restaurant.logo as string
+                    restaurant.logo as string,
                   )}
                   alt={restaurant.name}
                   fill
                   className="object-cover"
                 />
               </div>
-              <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-2 shadow-lg">
-                <Badge className="w-5 h-5 text-orange-600" />
+              {/* Status dot */}
+              <div
+                className={`absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full border-2 border-[#1a0a00] ${isPaused ? "bg-yellow-400" : restaurantIsOpen ? "bg-emerald-400" : "bg-red-400"}`}
+              >
+                {restaurantIsOpen && !isPaused && (
+                  <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                )}
               </div>
             </div>
 
-            {/* Restaurant Info */}
-            <div className="flex-1">
-              <div className="mb-4">
-                <h1 className="text-4xl md:text-5xl font-bold mb-3 bg-gradient-to-r from-white to-orange-100 bg-clip-text text-transparent">
-                  {restaurant.name}
-                </h1>
-                <div className="inline-flex items-center bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full">
-                  <span className="text-orange-100 text-sm font-medium">
-                    {restaurant.category}
+            {/* Name & meta */}
+            <div className="flex-1 pb-1">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-orange-400/80 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full">
+                  {restaurant.category}
+                </span>
+                {isPaused && (
+                  <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-yellow-400/80 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                    <Pause className="w-2.5 h-2.5" /> Paused
+                  </span>
+                )}
+              </div>
+
+              <h1
+                className="text-5xl md:text-7xl font-black text-white leading-none tracking-tight mb-6"
+                style={{ textShadow: "0 4px 40px rgba(249,115,22,0.2)" }}
+              >
+                {restaurant.name}
+              </h1>
+
+              {/* Stat pills */}
+              <div className="flex flex-wrap gap-3">
+                {/* Rating */}
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/8 rounded-full px-4 py-2">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span className="text-white text-sm font-semibold">
+                    {restaurant.rating}
+                  </span>
+                  <span className="text-white/30 text-xs">rating</span>
+                </div>
+
+                {/* Delivery */}
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/8 rounded-full px-4 py-2">
+                  <Clock className="w-3.5 h-3.5 text-orange-300" />
+                  <span className="text-white text-sm font-semibold">
+                    {restaurant.deliveryTime}
+                  </span>
+                  <span className="text-white/30 text-xs">delivery</span>
+                </div>
+
+                {/* Open status */}
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/8 rounded-full px-4 py-2">
+                  {isPaused ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 text-yellow-400" />
+                      <span className="text-yellow-300 text-sm font-semibold">
+                        Temporarily paused
+                      </span>
+                    </>
+                  ) : restaurantIsOpen ? (
+                    <>
+                      <Timer className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-300 text-sm font-semibold">
+                        Open now
+                      </span>
+                      <span className="text-white/30 text-xs">
+                        until {closeTime}
+                      </span>
+                    </>
+                  ) : countdown ? (
+                    <>
+                      <Timer className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-amber-300 text-sm font-semibold">
+                        Opens in {countdown}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <TimerOff className="w-3.5 h-3.5 text-red-400" />
+                      <span className="text-red-300 text-sm font-semibold">
+                        Closed
+                      </span>
+                      {openTime && (
+                        <span className="text-white/30 text-xs">
+                          until {openTime}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Item count */}
+                <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/8 rounded-full px-4 py-2">
+                  <Users className="w-3.5 h-3.5 text-orange-300/60" />
+                  <span className="text-white/60 text-sm">
+                    {menuItems.length} items
                   </span>
                 </div>
               </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Star className="w-5 h-5 fill-current text-yellow-300" />
-                  </div>
-                  <div className="text-lg font-bold">{restaurant.rating}</div>
-                  <div className="text-xs text-orange-100">Rating</div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Clock className="w-5 h-5 text-orange-200" />
-                  </div>
-                  <div className="text-lg font-bold">
-                    {restaurant.deliveryTime}
-                  </div>
-                  <div className="text-xs text-orange-100">Delivery</div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Clock1 className="w-5 h-5 text-orange-200" />
-                  </div>
-                  <div className="flex flex-col items-center space-y-1">
-                    {isPaused ? (
-                      <div className="flex items-center space-x-1">
-                        <Pause className="w-4 h-4 text-yellow-400" />
-                        <span className="text-sm font-bold text-yellow-300">
-                          Paused
-                        </span>
-                      </div>
-                    ) : restaurantIsOpen ? (
-                      <div className="flex items-center space-x-1">
-                        <div className="relative">
-                          <Timer className="w-4 h-4 text-green-400" />
-                          <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-75"></div>
-                        </div>
-                        <span className="text-sm font-bold text-green-300">
-                          Open Now
-                        </span>
-                        <span className="text-xs text-orange-200">
-                          until {closeTime}
-                        </span>
-                      </div>
-                    ) : countdown ? (
-                      <div className="flex items-center space-x-1">
-                        <div className="relative">
-                          <Timer className="w-4 h-4 text-yellow-400" />
-                          <div className="absolute inset-0 bg-yellow-400 rounded-full animate-pulse opacity-75"></div>
-                        </div>
-                        <span className="text-sm font-bold text-yellow-300">
-                          Opens in
-                        </span>
-                        <span className="text-base font-mono text-yellow-200 bg-yellow-900/20 px-2 py-1 rounded-full">
-                          {countdown}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-1">
-                        <TimerOff className="w-4 h-4 text-red-400" />
-                        <span className="text-sm font-bold text-red-300">
-                          Closed
-                        </span>
-                        {openTime && (
-                          <span className="text-xs text-orange-200">
-                            until {openTime}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Cart Button (disabled if paused) */}
-            <div className="flex flex-col gap-3">
+            {/* CTA */}
+            <div className="lg:pb-1">
               <Button
                 asChild
+                onClick={()=>{
+                  setActiveCart(true);
+                }}
                 size="lg"
                 disabled={isPaused}
-                className={`font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 ${
+                className={`rounded-2xl px-8 py-6 text-base font-bold shadow-2xl transition-all duration-300 ${
                   isPaused
-                    ? "bg-gray-500 hover:bg-gray-600 text-gray-200 cursor-not-allowed"
-                    : "bg-white hover:bg-gray-50 text-orange-600"
+                    ? "bg-gray-600/50 text-gray-400 cursor-not-allowed border border-gray-500/20"
+                    : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white shadow-[0_8px_32px_rgba(249,115,22,0.35)] hover:shadow-[0_12px_40px_rgba(249,115,22,0.5)] hover:-translate-y-0.5"
                 }`}
               >
-                <Link
-                  href="/cart"
-                  className={isPaused ? "pointer-events-none" : ""}
+                <span
+                
+                  className={isPaused ? "pointer-events-none" : "cursor-pointer"}
                 >
-                  <ShoppingCart className="w-5 h-5 mr-2" />
+                  <ShoppingCart className="w-5 h-5 mr-2.5" />
                   {isPaused ? "Unavailable" : "View Cart"}
-                </Link>
+                </span>
               </Button>
-              <div className="text-center">
-                <div className="flex items-center text-orange-100 text-sm">
-                  <Users className="w-4 h-4 mr-1" />
-                  <span>{menuItems.length} items available</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
+
+        {/* Bottom fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-orange-500/20 to-transparent" />
       </div>
 
-      {/* Paused Overlay if restaurant is paused */}
+      {/* ─── PAUSED MODAL ─── */}
       {isPaused && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md mx-4 text-center shadow-2xl">
-            <div className="w-16 h-16 mx-auto mb-6 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center">
-              <Pause className="w-8 h-8 text-yellow-500" />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] border border-white/8 rounded-3xl p-10 max-w-md w-full text-center shadow-[0_32px_80px_rgba(0,0,0,0.8)]">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+              <Pause className="w-9 h-9 text-yellow-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Restaurant Temporarily Paused
+            <h3 className="text-2xl font-bold text-white mb-3">
+              Temporarily Paused
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {restaurant.name} is currently paused. Orders are not available at
-              this time. Please check back later or contact the restaurant
-              directly for updates.
+            <p className="text-gray-400 text-sm leading-relaxed mb-8">
+              <span className="text-white font-medium">{restaurant.name}</span>{" "}
+              is currently paused and not accepting orders. Please check back
+              later.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/">
-                <Button
-                  variant="outline"
-                  className="border-gray-300 text-gray-700"
-                >
-                  Browse Other Restaurants
-                </Button>
-              </Link>
-            </div>
+            <Link href="/">
+              <Button className="w-full rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium py-5 transition-all">
+                Browse Other Restaurants
+              </Button>
+            </Link>
           </div>
         </div>
       )}
 
-      {/* Menu Section (hidden if paused) */}
+      {/* ─── MENU SECTION ─── */}
       {!isPaused && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-between mb-8">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-16">
+          {/* Section header */}
+          <div className="flex items-end justify-between mb-12">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              <p className="text-[10px] font-bold tracking-[0.25em] uppercase text-orange-500 mb-2">
+                What we offer
+              </p>
+              <h2 className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
                 Our Menu
               </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Discover our delicious offerings
-              </p>
             </div>
             {menuItems.length > 0 && (
-              <div className="text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-4 py-2 rounded-full shadow-sm">
-                {menuItems.length} {menuItems.length === 1 ? "item" : "items"}
-              </div>
+              <span className="text-sm text-gray-400 dark:text-gray-500 hidden sm:block">
+                {filteredMenuItems.length} / {menuItems.length} items
+              </span>
             )}
           </div>
 
           {menuItems.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                <ShoppingCart className="w-10 h-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                No Menu Items Yet
+            <div className="text-center py-24 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-800">
+              <div className="text-5xl mb-6">🍽️</div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
+                No items yet
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                This restaurant hasn't added any menu items yet. Please check
-                back later or contact them directly.
+              <p className="text-gray-500 text-sm mb-8 max-w-xs mx-auto">
+                This restaurant hasn't added any menu items. Please check back
+                later.
               </p>
               <Link href="/">
                 <Button
                   variant="outline"
-                  className="border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950"
+                  className="rounded-full border-orange-200 dark:border-orange-900 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30"
                 >
                   Browse Other Restaurants
                 </Button>
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {menuItems.map((item) => (
-                <RestaurantMenuItem
-                  key={item.$id}
-                  item={item}
-                  restaurantId={restaurant.$id}
-                />
-              ))}
-            </div>
+            <>
+              {/* Filter tabs */}
+              <div className="flex justify-center mb-12">
+                <div className="inline-flex items-center bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/8 rounded-2xl p-1.5 shadow-sm gap-1">
+                  {(["all", "veg", "non-veg"] as const).map((cat) => {
+                    const labels: Record<string, string> = {
+                      all: "All",
+                      veg: "🌿 Veg",
+                      "non-veg": "🍖 Non-Veg",
+                    };
+                    const active = activeCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 min-w-[100px] ${
+                          active
+                            ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_4px_16px_rgba(249,115,22,0.3)]"
+                            : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5"
+                        }`}
+                      >
+                        {labels[cat]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {filteredMenuItems.length === 0 ? (
+                <div className="text-center py-24 rounded-3xl bg-white dark:bg-[#141414] border border-gray-100 dark:border-white/5">
+                  <div className="text-6xl mb-6">
+                    {activeCategory === "veg" ? "🌱" : "🥩"}
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                    No{" "}
+                    {activeCategory === "veg" ? "vegetarian" : "non-vegetarian"}{" "}
+                    items
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    Try switching to another filter.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredMenuItems.map((item) => (
+                    <RestaurantMenuItem
+                      key={item.$id}
+                      item={item}
+                      restaurantId={restaurant.$id}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

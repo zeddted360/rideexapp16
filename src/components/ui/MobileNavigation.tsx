@@ -7,6 +7,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/state/store";
 import { useAuth } from "@/context/authContext";
 import ProfileDropdown from "./ProfileDropdown";
+import ContactSupportButton from "../ContactSupportButton";
 
 const MobileNavigation = () => {
   const router = useRouter();
@@ -36,10 +37,6 @@ const MobileNavigation = () => {
 
   const handleMenuClick = () => {
     router.push("/menu");
-  };
-
-  const handleOffersClick = () => {
-    router.push("/offers");
   };
 
   const handleCartClick = () => {
@@ -86,13 +83,7 @@ const MobileNavigation = () => {
         <div className="flex items-center space-x-6">
           {/* Search button to make it 5 buttons for better centering */}
           {user?.role !== "admin" && (
-            <button
-              onClick={handleOffersClick}
-              className="flex flex-col items-center py-2 px-2 text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 transition-colors"
-            >
-              <ShoppingBasket className="w-5 h-5 mb-1" color="#f97316" />
-              <span className="text-xs">Offers</span>
-            </button>
+            <ContactSupportButton/>
           )}
 
           {/* Admin Dashboard button for admin users only */}

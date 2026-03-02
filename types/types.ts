@@ -340,9 +340,10 @@ export interface IExtras {
   description?: string;
   image?: string;
   vendorId: string;
+  isSizeOption?: boolean; // ← NEW
 }
 
-export interface IFetchedExtras extends IExtras, Models.Document {}
+export interface IFetchedExtras extends IExtras, Models.Document { }
 
 export interface ISelectedExtra {
   extraId: string;
@@ -379,3 +380,5 @@ export type ContentItem =
   | IPopularItemFetched
   | IDiscountFetched
   | IPromoOfferFetched;
+
+ 

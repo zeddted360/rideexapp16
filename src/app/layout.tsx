@@ -1,3 +1,4 @@
+import GlobalDataLoader from "@/components/GlobalDataLoader";
 import ChatWidget from "../components/ChatWidget";
 import { Wrapper } from "../Providers/Wrapper";
 import "./globals.css";
@@ -34,6 +35,7 @@ export default function RootLayout({
       </head>
       <body className={`${roboto.className} min-h-screen flex flex-col`}>
         <Wrapper>
+          <GlobalDataLoader /> {/* ← loads everything on app start */}
           {children}
           <ChatWidget />
         </Wrapper>

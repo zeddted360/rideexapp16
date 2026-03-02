@@ -55,6 +55,7 @@ export const RestaurantMenuItem: React.FC<MenuItemCardProps> = ({
     }
   };
 
+
   const handleFavoriteToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsFavorited(!isFavorited);

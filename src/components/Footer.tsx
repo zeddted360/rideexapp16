@@ -93,14 +93,13 @@ export default function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
             {/* Brand Section */}
             <div className="lg:col-span-1 space-y-6">
-              <div className="relative h-20 w-20 rounded-full overflow-hidden shadow-md">
+              <div className="relative h-20 w-20 p-4 rounded-full overflow-hidden shadow-md">
                 <Image
                   src="/RideEx_Logo.jpg"
                   alt="RideEx logo"
                   fill
                   priority
                   quality={100}
-                  className="object-cover"
                 />
               </div>
               <p className="text-gray-300 leading-relaxed">
@@ -130,35 +129,9 @@ export default function Footer() {
                 </div>
               </div>
 
-              {/* Contact Support Button - Perfect spot! */}
-              <button
-                onClick={() => {
-                  if (
-                    typeof window !== "undefined" &&
-                    (window as any).Tawk_API
-                  ) {
-                    (window as any).Tawk_API.toggle(); // Opens if closed, closes if open
-                  }
-                }}
-                className="mt-6 inline-flex items-center gap-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-medium px-6 py-3 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.46-3.292A9.94 9.94 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
-                <span>Chat with Support</span>
-              </button>
+             
             </div>
+            
             {/* Quick Links */}
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-white">

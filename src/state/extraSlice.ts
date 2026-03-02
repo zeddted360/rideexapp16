@@ -29,7 +29,7 @@ const initialState: ExtraState = {
 
 export const listAsyncExtras = createAsyncThunk<
   IFetchedExtras[],
-  string, // vendorId
+  string,
   { rejectValue: string }
 >("extra/listAsyncExtras", async (vendorId, { rejectWithValue }) => {
   try {
@@ -37,12 +37,12 @@ export const listAsyncExtras = createAsyncThunk<
     const response = await databases.listDocuments<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
-      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")]
+      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")],
     );
     return response.documents;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to fetch extras"
+      error instanceof Error ? error.message : "Failed to fetch extras",
     );
   }
 });
@@ -57,19 +57,19 @@ export const listAllAsyncExtras = createAsyncThunk<
     const response = await databases.listDocuments<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
-      [Query.limit(100), Query.orderDesc("$createdAt")]
+      [Query.limit(100), Query.orderDesc("$createdAt")],
     );
     return response.documents;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to fetch all extras"
+      error instanceof Error ? error.message : "Failed to fetch all extras",
     );
   }
 });
 
 export const fetchExtraById = createAsyncThunk<
   IFetchedExtras,
-  string, // extraId
+  string,
   { rejectValue: string }
 >("extra/fetchById", async (extraId, { rejectWithValue }) => {
   try {
@@ -77,16 +77,17 @@ export const fetchExtraById = createAsyncThunk<
     const response = await databases.getDocument<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
-      extraId
+      extraId,
     );
     return response;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to fetch extra"
+      error instanceof Error ? error.message : "Failed to fetch extra",
     );
   }
 });
 
+// ==================== CREATE EXTRA (UPDATED) ====================
 export const createAsyncExtra = createAsyncThunk<
   IFetchedExtras,
   Omit<IExtras, "image"> & { image?: File },
@@ -94,14 +95,16 @@ export const createAsyncExtra = createAsyncThunk<
 >("extra/createAsyncExtra", async (extraData, { rejectWithValue }) => {
   try {
     const { databaseId, extrasCollectionId } = validateEnv();
-    const checkExistingExtract = await databases.listDocuments(
+
+    // Check for duplicate name
+    const checkExisting = await databases.listDocuments(
       databaseId,
       extrasCollectionId,
-      [Query.equal("name", extraData.name)]
+      [Query.equal("name", extraData.name)],
     );
 
-    if (checkExistingExtract.documents.length > 0) {
-      throw new Error("An Extra with same name already exist");
+    if (checkExisting.documents.length > 0) {
+      throw new Error("An Extra with the same name already exists");
     }
 
     let imageId: string | undefined;
@@ -110,7 +113,7 @@ export const createAsyncExtra = createAsyncThunk<
       const file = await storage.createFile(
         extrasBucketId,
         ID.unique(),
-        extraData.image
+        extraData.image,
       );
       imageId = file.$id;
     }
@@ -121,19 +124,20 @@ export const createAsyncExtra = createAsyncThunk<
       description: extraData.description,
       image: imageId,
       vendorId: extraData.vendorId,
+      isSizeOption: extraData.isSizeOption ?? false, // ← NEW FIELD ADDED
     };
 
     const response = await databases.createDocument<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
       ID.unique(),
-      docData
+      docData,
     );
 
     return response;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to create extra"
+      error instanceof Error ? error.message : "Failed to create extra",
     );
   }
 });
@@ -149,46 +153,42 @@ export const updateAsyncExtra = createAsyncThunk<
       const { databaseId, extrasCollectionId } = validateEnv();
       let updateData = { ...data };
 
-      // Fetch existing extra to get current image ID if needed
       const existingExtra = await databases.getDocument<IFetchedExtras>(
         databaseId,
         extrasCollectionId,
-        extraId
+        extraId,
       );
       const currentImageId = existingExtra.image;
 
       if (newImage instanceof File) {
-        // If there's an existing image, delete it first
         if (currentImageId) {
           const { extrasBucketId } = validateEnv();
           await storage.deleteFile(extrasBucketId, currentImageId);
         }
 
-        // Upload the new image
         const { extrasBucketId } = validateEnv();
         const file = await storage.createFile(
           extrasBucketId,
           ID.unique(),
-          newImage
+          newImage,
         );
         updateData.image = file.$id;
       }
-      // If no newImage, don't touch the image field (keep existing or null)
 
       const response = await databases.updateDocument<IFetchedExtras>(
         databaseId,
         extrasCollectionId,
         extraId,
-        updateData
+        updateData, // ← isSizeOption is automatically included
       );
 
       return response;
     } catch (error) {
       return rejectWithValue(
-        error instanceof Error ? error.message : "Failed to update extra"
+        error instanceof Error ? error.message : "Failed to update extra",
       );
     }
-  }
+  },
 );
 
 export const deleteAsyncExtra = createAsyncThunk<
@@ -205,24 +205,21 @@ export const deleteAsyncExtra = createAsyncThunk<
         await storage.deleteFile(extrasBucketId, imageId);
       }
 
-      const response = await databases.deleteDocument(
-        databaseId,
-        extrasCollectionId,
-        extraId
-      );
+      await databases.deleteDocument(databaseId, extrasCollectionId, extraId);
 
-      return response;
+      return {};
     } catch (error) {
       return rejectWithValue(
-        error instanceof Error ? error.message : "Failed to delete extra"
+        error instanceof Error ? error.message : "Failed to delete extra",
       );
     }
-  }
+  },
 );
 
+// ====================== PACKS (NO CHANGE NEEDED) ======================
 export const listAsyncPacks = createAsyncThunk<
   IPackFetched[],
-  string, // vendorId
+  string,
   { rejectValue: string }
 >("extra/listAsyncPacks", async (vendorId, { rejectWithValue }) => {
   try {
@@ -230,12 +227,12 @@ export const listAsyncPacks = createAsyncThunk<
     const response = await databases.listDocuments<IPackFetched>(
       databaseId,
       packsCollectionId,
-      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")]
+      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")],
     );
     return response.documents;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to fetch packs"
+      error instanceof Error ? error.message : "Failed to fetch packs",
     );
   }
 });
@@ -253,7 +250,7 @@ export const createAsyncPack = createAsyncThunk<
       [
         Query.equal("name", packData.name),
         Query.equal("vendorId", packData.vendorId),
-      ]
+      ],
     );
 
     if (checkExisting.documents.length > 0) {
@@ -264,13 +261,13 @@ export const createAsyncPack = createAsyncThunk<
       databaseId,
       packsCollectionId,
       ID.unique(),
-      packData
+      packData,
     );
 
     return response;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to create pack"
+      error instanceof Error ? error.message : "Failed to create pack",
     );
   }
 });
@@ -286,20 +283,20 @@ export const updateAsyncPack = createAsyncThunk<
       databaseId,
       packsCollectionId,
       packId,
-      data
+      data,
     );
 
     return response;
   } catch (error) {
     return rejectWithValue(
-      error instanceof Error ? error.message : "Failed to update pack"
+      error instanceof Error ? error.message : "Failed to update pack",
     );
   }
 });
 
 export const checkAndCreateDefaultPacks = createAsyncThunk<
   void,
-  string, // vendorId
+  string,
   { rejectValue: string }
 >(
   "extra/checkAndCreateDefaultPacks",
@@ -309,35 +306,28 @@ export const checkAndCreateDefaultPacks = createAsyncThunk<
       const response = await databases.listDocuments<IPackFetched>(
         databaseId,
         packsCollectionId,
-        [Query.equal("vendorId", vendorId)]
+        [Query.equal("vendorId", vendorId)],
       );
-      const existingPacks = response.documents;
 
       const defaults = [
         { name: "Medium Container", price: 200 },
         { name: "Big Container", price: 500 },
       ];
 
-      let packsCreated = 0;
       for (const def of defaults) {
-        const exists = existingPacks.some((p) => p.name === def.name);
+        const exists = response.documents.some((p) => p.name === def.name);
         if (!exists) {
           await dispatch(createAsyncPack({ ...def, vendorId })).unwrap();
-          packsCreated++;
         }
-      }
-
-      if (packsCreated > 0) {
-        toast.success(`Default packaging options have been set up automatically!`);
       }
 
       return;
     } catch (error) {
       return rejectWithValue(
-        error instanceof Error ? error.message : "Failed to check/create packs"
+        error instanceof Error ? error.message : "Failed to check/create packs",
       );
     }
-  }
+  },
 );
 
 const extraSlice = createSlice({
@@ -352,7 +342,7 @@ const extraSlice = createSlice({
     },
     setLoading: (
       state,
-      action: PayloadAction<"idle" | "pending" | "succeeded" | "failed">
+      action: PayloadAction<"idle" | "pending" | "succeeded" | "failed">,
     ) => {
       state.loading = action.payload;
     },
@@ -362,7 +352,6 @@ const extraSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // List
       .addCase(listAsyncExtras.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -375,7 +364,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // List All
       .addCase(listAllAsyncExtras.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -388,7 +376,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Fetch by ID
       .addCase(fetchExtraById.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -401,7 +388,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Create
       .addCase(createAsyncExtra.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -414,7 +400,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Update
       .addCase(updateAsyncExtra.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -422,11 +407,9 @@ const extraSlice = createSlice({
       .addCase(updateAsyncExtra.fulfilled, (state, action) => {
         state.loading = "succeeded";
         const index = state.extras.findIndex(
-          (extra) => extra.$id === action.payload.$id
+          (extra) => extra.$id === action.payload.$id,
         );
-        if (index !== -1) {
-          state.extras[index] = action.payload;
-        }
+        if (index !== -1) state.extras[index] = action.payload;
         if (state.currentExtra?.$id === action.payload.$id) {
           state.currentExtra = action.payload;
         }
@@ -435,7 +418,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Delete
       .addCase(deleteAsyncExtra.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -444,15 +426,12 @@ const extraSlice = createSlice({
         state.loading = "succeeded";
         const { extraId } = action.meta.arg;
         state.extras = state.extras.filter((extra) => extra.$id !== extraId);
-        if (state.currentExtra?.$id === extraId) {
-          state.currentExtra = null;
-        }
+        if (state.currentExtra?.$id === extraId) state.currentExtra = null;
       })
       .addCase(deleteAsyncExtra.rejected, (state, action) => {
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // List Packs
       .addCase(listAsyncPacks.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -465,7 +444,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Create Pack
       .addCase(createAsyncPack.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -478,7 +456,6 @@ const extraSlice = createSlice({
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Update Pack
       .addCase(updateAsyncPack.pending, (state) => {
         state.loading = "pending";
         state.error = null;
@@ -486,17 +463,14 @@ const extraSlice = createSlice({
       .addCase(updateAsyncPack.fulfilled, (state, action) => {
         state.loading = "succeeded";
         const index = state.packs.findIndex(
-          (pack) => pack.$id === action.payload.$id
+          (pack) => pack.$id === action.payload.$id,
         );
-        if (index !== -1) {
-          state.packs[index] = action.payload;
-        }
+        if (index !== -1) state.packs[index] = action.payload;
       })
       .addCase(updateAsyncPack.rejected, (state, action) => {
         state.loading = "failed";
         state.error = action.payload as string;
       })
-      // Check and Create Default Packs
       .addCase(checkAndCreateDefaultPacks.pending, (state) => {
         state.loading = "pending";
         state.error = null;

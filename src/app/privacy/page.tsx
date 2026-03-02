@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const PrivacyPolicyPage = () => {
   const router = useRouter();
@@ -48,14 +49,23 @@ const PrivacyPolicyPage = () => {
               RideEx Privacy Policy
             </h2>
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-7">
-              This Privacy Policy explains how RideEx, a Moto freight and logistics company, collects, uses, and protects your personal information when you use our services, website, or mobile app. For questions, contact us at{' '}
-              <a href="mailto:privacy@rideex.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                privacy@rideex.com
-              </a>{' '}
-              or{' '}
-              <a href="tel:+2348012345678" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                +234 801 234 5678
-              </a>
+              This Privacy Policy explains how RideEx, a Moto freight and
+              logistics company, collects, uses, and protects your personal
+              information when you use our services, website, or mobile app. For
+              questions, contact us at{" "}
+              <Link
+                href="mailto:support@rideexapp.com"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
+                support@rideexaap.com
+              </Link>{" "}
+              or{" "}
+              <Link
+                href="tel:+2348012345678"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
+                +234 707 208 7857
+              </Link>
               .
             </p>
           </div>
@@ -66,7 +76,12 @@ const PrivacyPolicyPage = () => {
               1. Information We Collect
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We collect information you provide directly to us, such as when you create an account, place an order, or contact us for support. This includes your name, email address, phone number, delivery address, and payment information. We also collect data automatically, like your device information and location, to enhance our services.
+              We collect information you provide directly to us, such as when
+              you create an account, place an order, or contact us for support.
+              This includes your name, email address, phone number, delivery
+              address, and payment information. We also collect data
+              automatically, like your device information and location, to
+              enhance our services.
             </div>
           </div>
 
@@ -76,7 +91,12 @@ const PrivacyPolicyPage = () => {
               2. How We Use Your Information
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We use the information we collect to provide, maintain, and improve our Moto freight and logistics services, process transactions, send you technical notices and support messages, and communicate with you about products, services, and promotional offers related to restaurants, grocery, pharmacy, and health services.
+              We use the information we collect to provide, maintain, and
+              improve our Moto freight and logistics services, process
+              transactions, send you technical notices and support messages, and
+              communicate with you about products, services, and promotional
+              offers related to restaurants, grocery, pharmacy, and health
+              services.
             </div>
           </div>
 
@@ -86,7 +106,11 @@ const PrivacyPolicyPage = () => {
               3. Information Sharing
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We may share your information with restaurants, delivery partners, and service providers (e.g., payment processors) to fulfill your orders, with third-party logistics partners for efficient delivery, and as required by law or to protect our rights and safety.
+              We may share your information with restaurants, delivery partners,
+              and service providers (e.g., payment processors) to fulfill your
+              orders, with third-party logistics partners for efficient
+              delivery, and as required by law or to protect our rights and
+              safety.
             </div>
           </div>
 
@@ -96,7 +120,10 @@ const PrivacyPolicyPage = () => {
               4. Location Information
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We collect location information to provide delivery services, show nearby service providers (e.g., restaurants, pharmacies), and optimize our platform. You can control location sharing through your device or browser settings.
+              We collect location information to provide delivery services, show
+              nearby service providers (e.g., restaurants, pharmacies), and
+              optimize our platform. You can control location sharing through
+              your device or browser settings.
             </div>
           </div>
 
@@ -106,7 +133,10 @@ const PrivacyPolicyPage = () => {
               5. Data Security
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We implement appropriate security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the internet or mobile network is 100% secure.
+              We implement appropriate security measures to protect your
+              personal information against unauthorized access, alteration,
+              disclosure, or destruction. However, no method of transmission
+              over the internet or mobile network is 100% secure.
             </div>
           </div>
 
@@ -116,10 +146,16 @@ const PrivacyPolicyPage = () => {
               6. Cookies and Tracking
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We use cookies and similar tracking technologies to collect and use personal information about you, such as your browsing behavior and preferences. You can manage cookies through your browser or device settings. See our{' '}
-              <a href="/cookies" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
+              We use cookies and similar tracking technologies to collect and
+              use personal information about you, such as your browsing behavior
+              and preferences. You can manage cookies through your browser or
+              device settings. See our{" "}
+              <a
+                href="/cookies"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
                 Cookies Policy
-              </a>{' '}
+              </a>{" "}
               for more details.
             </div>
           </div>
@@ -130,7 +166,9 @@ const PrivacyPolicyPage = () => {
               7. Data Retention
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We retain your personal information for as long as necessary to provide our services, comply with legal obligations, resolve disputes, and enforce our agreements with you and our partners.
+              We retain your personal information for as long as necessary to
+              provide our services, comply with legal obligations, resolve
+              disputes, and enforce our agreements with you and our partners.
             </div>
           </div>
 
@@ -140,9 +178,14 @@ const PrivacyPolicyPage = () => {
               8. Your Rights
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              You have the right to access, update, or delete your personal information. You may also opt out of certain communications from us. To exercise these rights, contact us at{' '}
-              <a href="mailto:privacy@rideex.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                privacy@rideex.com
+              You have the right to access, update, or delete your personal
+              information. You may also opt out of certain communications from
+              us. To exercise these rights, contact us at{" "}
+              <a
+                href="mailto:support@rideexapp.com"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
+                support@rideexapp.com
               </a>
               .
             </div>
@@ -154,7 +197,9 @@ const PrivacyPolicyPage = () => {
               9. Children's Privacy
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              Our services are not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If we learn of such data, we will delete it promptly.
+              Our services are not intended for children under 13 years of age.
+              We do not knowingly collect personal information from children
+              under 13. If we learn of such data, we will delete it promptly.
             </div>
           </div>
 
@@ -164,7 +209,9 @@ const PrivacyPolicyPage = () => {
               10. Changes to Privacy Policy
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date.
+              We may update this Privacy Policy from time to time. We will
+              notify you of any changes by posting the new Privacy Policy on
+              this page and updating the "Last updated" date.
             </div>
           </div>
 
@@ -174,20 +221,24 @@ const PrivacyPolicyPage = () => {
               11. Contact Us
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              If you have any questions about this Privacy Policy, please contact us at{' '}
-              <a href="mailto:privacy@rideex.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                privacy@rideex.com
-              </a>{' '}
+              If you have any questions about this Privacy Policy, please
+              contact us at{" "}
+              <Link
+                href="mailto:support@rideexapp.com"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
+                support@rideexapp.com
+              </Link>{" "}
               or through our app's support feature.
             </div>
           </div>
 
           <div className="mt-12 pt-6 border-t border-gray-200/10 dark:border-white/10 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono mb-2">
-              Last updated: September 2025
+              Last updated: January {new Date().getFullYear()}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-              © 2025 RideEx. All rights reserved.
+              © {new Date().getFullYear()} RideEx. All rights reserved.
             </p>
           </div>
         </div>

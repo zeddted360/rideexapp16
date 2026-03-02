@@ -11,6 +11,9 @@ import StickyCartBar from "./StickyCartBar";
 import FullPageSkeleton from "./FullPageSkeleton";
 import { fetchMenuItemsByRestaurant } from "@/state/menuSlice";
 import { listAsyncRestaurants } from "@/state/restaurantSlice";
+import { OutOfStockOverlay } from "../OutOfStockOverlay";
+import { OutOfStockModal } from "../OutOfStockModal";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const RestaurantList = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -21,12 +24,22 @@ const RestaurantList = () => {
   } = useSelector((state: RootState) => state.restaurant);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // NEW: deep-link state
+  const [targetItemId, setTargetItemId] = useState<string | null>(null);
+  const [highlightItemId, setHighlightItemId] = useState<string | null>(null);
+
   const [selectedRestaurant, setSelectedRestaurant] =
     useState<IRestaurantFetched | null>(null);
   const [selectedType, setSelectedType] = useState<"all" | "veg" | "non-veg">(
     "all",
   );
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
+  const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
+  const [selectedOutOfStockItem, setSelectedOutOfStockItem] =
+    useState<IMenuItemFetched | null>(null);
   const [restaurantMenuItems, setRestaurantMenuItems] = useState<
     IMenuItemFetched[]
   >([]);
@@ -44,7 +57,7 @@ const RestaurantList = () => {
     ) {
       setSelectedRestaurant(restaurants[0]);
     }
-  }, [dispatch, restaurantLoading, restaurants]);
+  }, [dispatch, restaurantLoading, restaurants, selectedRestaurant]);
 
   // Fetch menu items for selected restaurant
   useEffect(() => {
@@ -53,12 +66,70 @@ const RestaurantList = () => {
       dispatch(fetchMenuItemsByRestaurant(selectedRestaurant.$id))
         .unwrap()
         .then((items) => setRestaurantMenuItems(items))
-        .catch(() => setRestaurantMenuItems([])) // Graceful empty on error
+        .catch(() => setRestaurantMenuItems([]))
         .finally(() => setLocalMenuLoading(false));
     } else {
       setRestaurantMenuItems([]);
     }
   }, [selectedRestaurant, dispatch]);
+
+  // 1. Handle deep link from search
+  useEffect(() => {
+    const restaurantIdParam = searchParams.get("restaurantId");
+    const itemIdParam = searchParams.get("itemId");
+    
+
+    if (restaurantLoading === "succeeded" && restaurants.length > 0) {
+      if (restaurantIdParam) {
+        const targetRest = restaurants.find((r) => r.$id === restaurantIdParam);
+        if (targetRest) {
+          setSelectedRestaurant(targetRest);
+          if (itemIdParam) setTargetItemId(itemIdParam);
+          return;
+        }
+      }
+      // fallback
+      if (!selectedRestaurant) {
+        setSelectedRestaurant(restaurants[0]);
+      }
+    }
+  }, [restaurantLoading, restaurants, searchParams, selectedRestaurant]);
+
+  // 2. Scroll + highlight when item is ready
+  useEffect(() => {
+    if (!targetItemId || restaurantMenuItems.length === 0) return;
+
+    const itemExists = restaurantMenuItems.some((i) => i.$id === targetItemId);
+    if (!itemExists) {
+      setTargetItemId(null);
+      return;
+    }
+
+    const scrollTimer = setTimeout(() => {
+      const element = document.getElementById(`menu-item-${targetItemId}`);
+      if (element) {
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+
+        setHighlightItemId(targetItemId);
+
+        // Auto-remove highlight + clean URL
+        const highlightTimer = setTimeout(() => {
+          setHighlightItemId(null);
+          setTargetItemId(null);
+
+          // Clean URL (modern pattern)
+          router.replace("/menu", { scroll: false });
+        }, 5000);
+
+        return () => clearTimeout(highlightTimer);
+      }
+    }, 180); // tiny delay for React to render the new items
+
+    return () => clearTimeout(scrollTimer);
+  }, [targetItemId, restaurantMenuItems, router]);
 
   // Local shimmer on type change
   useEffect(() => {
@@ -67,12 +138,8 @@ const RestaurantList = () => {
     return () => clearTimeout(timeout);
   }, [selectedType]);
 
-  // Full page loading
-  if (restaurantLoading === "pending") {
-    return <FullPageSkeleton />;
-  }
+  if (restaurantLoading === "pending") return <FullPageSkeleton />;
 
-  // Restaurant error
   if (restaurantLoading === "failed" && error) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 text-center">
@@ -81,7 +148,6 @@ const RestaurantList = () => {
     );
   }
 
-  // No restaurants
   if (restaurantLoading === "succeeded" && restaurants.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 text-center">
@@ -92,12 +158,33 @@ const RestaurantList = () => {
     );
   }
 
-  // Main content
   const approvedMenuItems = restaurantMenuItems.filter(
     (item) => item.isApproved,
   );
   const filteredMenuItems = approvedMenuItems.filter(
     (item) => selectedType === "all" || item.category === selectedType,
+  );
+
+  
+  const renderMenuItem = (item: IMenuItemFetched) => (
+    <div
+      key={item.$id}
+      id={`menu-item-${item.$id}`} // ← important for scroll
+      className={`relative group transition-all duration-500 rounded-3xl overflow-hidden
+        ${
+          highlightItemId === item.$id
+            ? "ring-4 ring-orange-500 ring-offset-4 ring-offset-gray-50 dark:ring-offset-gray-900 scale-[1.02] shadow-2xl"
+            : ""
+        }`}
+    >
+      <MenuItemCard item={item} />
+      {item.isPaused && (
+        <OutOfStockOverlay
+          itemName={item.name || "This item"}
+          className="rounded-3xl"
+        />
+      )}
+    </div>
   );
 
   return (
@@ -187,23 +274,28 @@ const RestaurantList = () => {
             </p>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredMenuItems.map((item) => (
-                <MenuItemCard key={item.$id} item={item} />
-              ))}
+              {filteredMenuItems.map(renderMenuItem)}
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredMenuItems.map((item) => (
-                <MenuItemCard key={item.$id} item={item} />
-              ))}
+              {filteredMenuItems.map(renderMenuItem)}
             </div>
           )}
         </div>
 
         <StickyCartBar />
+        {showOutOfStockModal && selectedOutOfStockItem && (
+          <OutOfStockModal
+            itemName={selectedOutOfStockItem.name || "This item"}
+            onClose={() => {
+              setShowOutOfStockModal(false);
+              setSelectedOutOfStockItem(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
-};
+};;;;
 
 export default RestaurantList;

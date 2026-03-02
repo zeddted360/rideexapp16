@@ -82,8 +82,13 @@ export const listAsyncMenusItem = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       menuItemsCollectionId,
-      [Query.limit(100), Query.orderDesc("$createdAt")],
+      [
+        Query.limit(1000),
+        Query.orderDesc("$createdAt"),
+        Query.equal("isApproved", true),
+      ],
     );
+
     return response.documents as unknown as IMenuItemFetched[];
   } catch (error) {
     const errorMsg =
@@ -107,7 +112,7 @@ export const fetchMenuItemsByRestaurant = createAsyncThunk<
       menuItemsCollectionId,
       [
         Query.equal("restaurantId", restaurantId),
-        Query.limit(100),
+        Query.limit(1000),
         Query.orderAsc("$createdAt"),
       ],
     );

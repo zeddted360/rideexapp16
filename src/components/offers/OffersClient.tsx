@@ -206,7 +206,7 @@ function ViewToggleSection({
       {showList && (
         <div className="flex items-center justify-between gap-4 w-full">
           <h2 className="text-xl sm:text-2xl font-bold text-orange-600">
-            RideEx MiniMart
+          MiniMart
           </h2>
           <div className="flex gap-x-3">
             <motion.button

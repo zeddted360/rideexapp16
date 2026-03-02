@@ -41,6 +41,8 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
   getTypeLabel,
   getTypeIcon,
 }) => {
+
+  
   return (
     <div
       className="hidden lg:block flex-1 max-w-md mx-8 relative"
@@ -134,10 +136,6 @@ const DesktopSearch: React.FC<DesktopSearchProps> = ({
                       }`}
                       onClick={() => {
                         handleResultClick(result);
-                        console.log(
-                          "The result of search on desktop is : ",
-                          result,
-                        );
                       }}
                     >
                       <div className="flex items-center gap-3">

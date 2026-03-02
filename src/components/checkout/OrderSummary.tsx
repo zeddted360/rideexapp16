@@ -1,6 +1,8 @@
 import React from "react";
 import { PaymentMethod } from "./PaymentMethodSelector";
 import { ICartItemFetched } from "../../../types/types";
+import Image from "next/image";
+import { fileUrl, validateEnv } from "@/utils/appwrite";
 
 interface OrderSummaryProps {
   orders: ICartItemFetched[];
@@ -40,9 +42,32 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             className="flex justify-between items-center bg-orange-50 dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm"
           >
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-orange-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-300 font-bold text-lg">
-                {item.quantity}x
+              {/* ←←← NEW IMAGE + QUANTITY BADGE */}
+              <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-orange-100 dark:bg-gray-700 flex-shrink-0">
+                {item.image ? (
+                  <Image
+                    src={fileUrl(
+                      validateEnv().menuBucketId ||
+                        validateEnv().featuredBucketId ||
+                        validateEnv().popularBucketId ||
+                        validateEnv().discountBucketId,
+                      item.image,
+                    )}
+                    alt={item.name}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl">
+                    🍔
+                  </div>
+                )}
+                {/* Quantity badge (moved here) */}
+                <div className="absolute -top-1 -right-1 bg-orange-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md border-2 border-white dark:border-gray-800">
+                  {item.quantity}
+                </div>
               </div>
+
               <div>
                 <p className="font-semibold text-gray-900 dark:text-gray-100">
                   {item.name}

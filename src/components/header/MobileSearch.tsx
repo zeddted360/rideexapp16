@@ -40,6 +40,8 @@ const MobileSearch: React.FC<MobileSearchProps> = ({
   getTypeLabel,
   getTypeIcon,
 }) => {
+
+  
   return (
     <div className="lg:hidden mb-4 relative" ref={searchRef}>
       <div className="relative">

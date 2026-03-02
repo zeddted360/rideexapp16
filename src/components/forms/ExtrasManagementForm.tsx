@@ -20,7 +20,6 @@ import {
   Image as ImageIcon,
   Info,
   Sparkles,
-  DollarSign,
   Upload,
 } from "lucide-react";
 import FileInput from "@/components/FileInput";
@@ -47,6 +46,7 @@ const extraSchema = z.object({
   description: z.string(),
   image: z.any().optional(),
   vendorId: z.string(),
+  isSizeOption: z.boolean().optional(),
 });
 
 type ExtraFormData = z.infer<typeof extraSchema>;
@@ -56,7 +56,7 @@ const ITEMS_PER_PAGE = 4;
 const ExtrasManagementForm = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { extras, packs, loading, error } = useSelector(
-    (state: RootState) => state.extra
+    (state: RootState) => state.extra,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -75,6 +75,7 @@ const ExtrasManagementForm = () => {
       description: "",
       image: undefined,
       vendorId: "",
+      isSizeOption: false, // ← FIXED: was missing → caused TS error
     },
     mode: "onChange",
   });
@@ -125,18 +126,16 @@ const ExtrasManagementForm = () => {
         data.image && (data.image as FileList).length > 0
           ? (data.image as FileList)[0]
           : undefined;
+
       if (editingId) {
         if (editingType === "pack") {
           await dispatch(
             updateAsyncPack({
               packId: editingId,
               data: { price: parseFloat(data.price) },
-            })
+            }),
           ).unwrap();
           toast.success("Pack price updated successfully!");
-          setEditingId(null);
-          setEditingType(null);
-          setIsFormCollapsed(true);
         } else {
           await dispatch(
             updateAsyncExtra({
@@ -146,15 +145,16 @@ const ExtrasManagementForm = () => {
                 price: data.price,
                 description: data.description,
                 vendorId,
+                isSizeOption: data.isSizeOption, // ← FIXED
               },
               newImage: imageFile,
-            })
+            }),
           ).unwrap();
           toast.success("Extra updated successfully!");
-          setEditingId(null);
-          setEditingType(null);
-          setIsFormCollapsed(true);
         }
+        setEditingId(null);
+        setEditingType(null);
+        setIsFormCollapsed(true);
       } else {
         await dispatch(
           createAsyncExtra({
@@ -163,7 +163,8 @@ const ExtrasManagementForm = () => {
             description: data.description,
             vendorId,
             image: imageFile,
-          })
+            isSizeOption: data.isSizeOption, // ← FIXED
+          }),
         ).unwrap();
         toast.success("Extra added successfully!");
         setIsFormCollapsed(true);
@@ -179,16 +180,18 @@ const ExtrasManagementForm = () => {
 
   const handleEdit = (
     item: IFetchedExtras | IPackFetched,
-    type: "extra" | "pack"
+    type: "extra" | "pack",
   ) => {
     setEditingId(item.$id);
     setEditingType(type);
     setIsFormCollapsed(false);
+
     if (type === "pack") {
       const pack = item as IPackFetched;
       form.setValue("name", pack.name);
       form.setValue("price", pack.price.toString());
       form.setValue("description", "");
+      form.setValue("isSizeOption", false);
       form.setValue("image", undefined);
       setImagePreview(null);
     } else {
@@ -196,7 +199,8 @@ const ExtrasManagementForm = () => {
       form.setValue("name", extra.name);
       form.setValue("price", extra.price);
       form.setValue("description", extra.description || "");
-      setImagePreview(null); // Clear preview on edit
+      form.setValue("isSizeOption", extra.isSizeOption || false); // ← FIXED
+      setImagePreview(null);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -239,7 +243,7 @@ const ExtrasManagementForm = () => {
 
   const renderItemCard = (
     item: IFetchedExtras | IPackFetched,
-    type: "extra" | "pack"
+    type: "extra" | "pack",
   ) => {
     const isPack = type === "pack";
     const name = item.name;
@@ -250,6 +254,7 @@ const ExtrasManagementForm = () => {
       ? undefined
       : (item as IFetchedExtras).description;
     const image = isPack ? undefined : (item as IFetchedExtras).image;
+    const isSize = !isPack && (item as IFetchedExtras).isSizeOption;
 
     return (
       <Card
@@ -274,9 +279,16 @@ const ExtrasManagementForm = () => {
               )}
             </div>
           )}
-          <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate mb-1 text-base">
-            {name}
-          </h4>
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+              {name}
+            </h4>
+            {isSize && (
+              <span className="text-[10px] px-2 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                SIZE
+              </span>
+            )}
+          </div>
           <p className="text-lg font-bold text-orange-600 dark:text-orange-400 mb-2">
             ₦{price.toLocaleString()}
           </p>
@@ -373,13 +385,13 @@ const ExtrasManagementForm = () => {
                     <Input
                       id="name"
                       {...form.register("name")}
-                      placeholder="e.g. Plastic Container"
+                      placeholder="e.g. Plastic Container or Mine Size"
                       className={`h-12 mt-1.5 transition-all ${
                         getFieldError("name")
                           ? "border-red-500 focus:ring-red-500"
                           : isFieldTouched("name")
-                          ? "border-green-500 focus:ring-green-500"
-                          : "focus:ring-orange-500"
+                            ? "border-green-500 focus:ring-green-500"
+                            : "focus:ring-orange-500"
                       }`}
                       disabled={isSubmitting || editingType === "pack"}
                     />
@@ -410,8 +422,8 @@ const ExtrasManagementForm = () => {
                           getFieldError("price")
                             ? "border-red-500 focus:ring-red-500"
                             : isFieldTouched("price")
-                            ? "border-green-500 focus:ring-green-500"
-                            : "focus:ring-orange-500"
+                              ? "border-green-500 focus:ring-green-500"
+                              : "focus:ring-orange-500"
                         }`}
                         disabled={isSubmitting}
                       />
@@ -430,27 +442,42 @@ const ExtrasManagementForm = () => {
                   {/* Description Field */}
                   {editingType !== "pack" && (
                     <div className="md:col-span-2">
-                      <Label
-                        htmlFor="description"
-                        className="flex items-center gap-1"
-                      >
-                        Description
-                      </Label>
+                      <Label htmlFor="description">Description</Label>
                       <Textarea
                         id="description"
                         {...form.register("description")}
-                        placeholder="e.g. Disposable plastic container for easy takeaway..."
+                        placeholder="e.g. Disposable plastic container..."
                         className={`min-h-[100px] mt-1.5 transition-all ${
                           getFieldError("description")
                             ? "border-red-500 focus:ring-red-500"
                             : isFieldTouched("description")
-                            ? "border-green-500 focus:ring-green-500"
-                            : "focus:ring-orange-500"
+                              ? "border-green-500 focus:ring-green-500"
+                              : "focus:ring-orange-500"
                         }`}
                         disabled={isSubmitting}
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Optional: Add details about this extra
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ← NEW CUP SIZE TOGGLE (Best Practice) */}
+                  {editingType !== "pack" && (
+                    <div className="md:col-span-2 pt-2">
+                      <Label className="flex items-center gap-3 cursor-pointer text-base">
+                        <input
+                          type="checkbox"
+                          {...form.register("isSizeOption")}
+                          className="w-5 h-5 accent-orange-500 rounded"
+                        />
+                        <span className="font-medium">
+                          This is a Cup Size / Variant
+                        </span>
+                      </Label>
+                      <p className="text-xs text-gray-500 mt-1 ml-8">
+                        Will appear as radio buttons in the add-to-cart modal
+                        and replace the item price
                       </p>
                     </div>
                   )}
@@ -560,10 +587,13 @@ const ExtrasManagementForm = () => {
         )}
       </Card>
 
+      {/* Rest of your list section remains exactly the same (I kept it untouched) */}
       <Card
         id="extras-list"
         className="w-full bg-white/80 dark:bg-gray-900/80 shadow-2xl rounded-2xl border-0 py-4"
       >
+        {/* ... your entire CardHeader + CardContent + loading states + grid + show more/less ... */}
+        {/* (I copied it exactly from your code so nothing is missing) */}
         <CardHeader className="flex flex-row items-center gap-3 pb-2">
           <span className="bg-gradient-to-br from-orange-100 to-yellow-100 dark:from-orange-900 dark:to-yellow-900 p-2 rounded-full">
             <ImageIcon className="w-6 h-6 text-orange-500 fill-orange-500" />
@@ -626,10 +656,10 @@ const ExtrasManagementForm = () => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {packs.map((pack: IPackFetched) =>
-                  renderItemCard(pack, "pack")
+                  renderItemCard(pack, "pack"),
                 )}
                 {visibleExtras.map((extra: IFetchedExtras) =>
-                  renderItemCard(extra, "extra")
+                  renderItemCard(extra, "extra"),
                 )}
               </div>
 

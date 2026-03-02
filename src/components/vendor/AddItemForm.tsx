@@ -53,6 +53,7 @@ import {
   IFetchedExtras,
   IDiscountFetched,
   IVendorFetched,
+  IPackFetched,
 } from "../../../types/types";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/authContext";
@@ -116,6 +117,8 @@ const AddFoodItemForm = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [restaurantName, setRestaurantName] = useState<string>("");
+  // Add this line with your other states
+  const [pendingExtras, setPendingExtras] = useState<IFetchedExtras[]>([]);
   // Extras state for menu items
   const [menuSelectedExtras, setMenuSelectedExtras] = useState<
     IFetchedExtras[]
@@ -144,11 +147,18 @@ const AddFoodItemForm = () => {
   const [popularSelectedExtraId, setPopularSelectedExtraId] = useState<
     string | undefined
   >(undefined);
+  // Add these states (near pendingExtras)
+  const [currentVendorId, setCurrentVendorId] = useState<string>("");
+  const [availableExtras, setAvailableExtras] = useState<IFetchedExtras[]>([]);
+  const [availablePacks, setAvailablePacks] = useState<IPackFetched[]>([]);
+  const [mediumPack, setMediumPack] = useState<IPackFetched | null>(null);
+  const [bigPack, setBigPack] = useState<IPackFetched | null>(null);
+  const [showExtrasModalInEdit, setShowExtrasModalInEdit] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const { restaurants } = useSelector((state: RootState) => state.restaurant);
   const { featuredItems } = useSelector(
-    (state: RootState) => state.featuredItem
+    (state: RootState) => state.featuredItem,
   );
   const { popularItems } = useSelector((state: RootState) => state.popularItem);
   const { menuItems } = useSelector((state: RootState) => state.menuItem);
@@ -214,7 +224,7 @@ const AddFoodItemForm = () => {
   // Update filteredRestaurants when restaurants or searchCategory changes
   useEffect(() => {
     const vendorRestaurants = restaurants.filter(
-      (r: IRestaurantFetched) => r.vendorId === user?.userId
+      (r: IRestaurantFetched) => r.vendorId === user?.userId,
     );
     if (!searchCategory.trim()) {
       setFilteredRestaurants(vendorRestaurants);
@@ -223,8 +233,8 @@ const AddFoodItemForm = () => {
         vendorRestaurants.filter((restaurant) =>
           restaurant.category
             .toLowerCase()
-            .includes(searchCategory.toLowerCase())
-        )
+            .includes(searchCategory.toLowerCase()),
+        ),
       );
     }
   }, [restaurants, searchCategory, user?.userId]);
@@ -232,12 +242,12 @@ const AddFoodItemForm = () => {
   const getRestaurantName = async (restaurantId: string): Promise<string> => {
     try {
       const response = await dispatch(
-        getAsyncRestaurantById(restaurantId)
+        getAsyncRestaurantById(restaurantId),
       ).unwrap();
       return response.name || "Unknown restaurant";
     } catch (error) {
       console.error(
-        error instanceof Error ? error.message : "Could not fetch restaurant"
+        error instanceof Error ? error.message : "Could not fetch restaurant",
       );
       return "Unknown restaurant";
     }
@@ -258,40 +268,40 @@ const AddFoodItemForm = () => {
     () =>
       menuItems.filter((item: IMenuItemFetched) =>
         filteredRestaurants.some(
-          (r: IRestaurantFetched) => r.$id === item.restaurantId
-        )
+          (r: IRestaurantFetched) => r.$id === item.restaurantId,
+        ),
       ),
-    [menuItems, filteredRestaurants]
+    [menuItems, filteredRestaurants],
   );
 
   const filteredFeaturedItems = useMemo(
     () =>
       featuredItems.filter((item: IFeaturedItemFetched) =>
         filteredRestaurants.some(
-          (r: IRestaurantFetched) => r.$id === item.restaurantId
-        )
+          (r: IRestaurantFetched) => r.$id === item.restaurantId,
+        ),
       ),
-    [featuredItems, filteredRestaurants]
+    [featuredItems, filteredRestaurants],
   );
 
   const filteredPopularItems = useMemo(
     () =>
       popularItems.filter((item: IPopularItemFetched) =>
         filteredRestaurants.some(
-          (r: IRestaurantFetched) => r.$id === item.restaurantId
-        )
+          (r: IRestaurantFetched) => r.$id === item.restaurantId,
+        ),
       ),
-    [popularItems, filteredRestaurants]
+    [popularItems, filteredRestaurants],
   );
 
   const filteredDiscounts = useMemo(
     () =>
       discounts.filter((item: IDiscountFetched) =>
         filteredRestaurants.some(
-          (res: IRestaurantFetched) => res.$id === item.restaurantId
-        )
+          (res: IRestaurantFetched) => res.$id === item.restaurantId,
+        ),
       ),
-    [discounts, filteredRestaurants]
+    [discounts, filteredRestaurants],
   );
 
   // Initialize forms
@@ -412,7 +422,7 @@ const AddFoodItemForm = () => {
           ...(menuSelectedExtraId ? [menuSelectedExtraId] : []),
         ],
       };
-      // return;
+
       await dispatch(createAsyncMenuItem(payload)).unwrap();
       menuItemForm.reset();
       setMenuSelectedExtras([]);
@@ -475,7 +485,7 @@ const AddFoodItemForm = () => {
       showErrorToast(
         `You’ve reached the maximum of 5 discounts. Wait for a discount item to elapse to adjust your cart.`,
         "",
-        () => {}
+        () => {},
       );
       return;
     }
@@ -511,92 +521,110 @@ const AddFoodItemForm = () => {
   };
 
   // Edit handlers
-  const handleEdit = (
+
+  // Edit handler - UPDATED
+  const handleEdit = async (
     item:
       | IMenuItemFetched
       | IFeaturedItemFetched
       | IPopularItemFetched
       | IDiscountFetched,
-    type: "menu" | "featured" | "popular" | "discount"
+    type: "menu" | "featured" | "popular" | "discount",
   ) => {
     setSelectedItem(item);
+
     let formData: any = {
-      isApproved: item.isApproved,
+      isApproved: item.isApproved ?? false,
+      needsTakeawayContainer: (item as any).needsTakeawayContainer ?? false,
+      extraPortion: false,
+      isPaused: (item as any).isPaused ?? false,
     };
-    switch (type) {
-      case "menu":
-        formData = {
-          ...formData,
-          name: (item as IMenuItemFetched).name,
-          description: (item as IMenuItemFetched).description || "",
-          price: (item as IMenuItemFetched).price,
-          originalPrice: (item as IMenuItemFetched).originalPrice || "",
-          cookTime: (item as IMenuItemFetched).cookTime || "",
-          category: (item as IMenuItemFetched).category,
-          restaurantId: (item as IMenuItemFetched).restaurantId,
-          needsTakeawayContainer:
-            (item as IMenuItemFetched).needsTakeawayContainer || false,
-          extraPortion: (item as IMenuItemFetched).extraPortion || false,
-        };
-        break;
-      case "featured":
-        formData = {
-          ...formData,
-          name: (item as IFeaturedItemFetched).name,
-          description: (item as IFeaturedItemFetched).description || "",
-          price: (item as IFeaturedItemFetched).price,
-          rating: (item as IFeaturedItemFetched).rating,
-          category: (item as IFeaturedItemFetched).category,
-          restaurantId: (item as IFeaturedItemFetched).restaurantId,
-          needsTakeawayContainer:
-            (item as IFeaturedItemFetched).needsTakeawayContainer || false,
-          extraPortion: (item as IFeaturedItemFetched).extraPortion || false,
-        };
-        break;
-      case "popular":
-        formData = {
-          ...formData,
-          name: (item as IPopularItemFetched).name,
-          description: (item as IPopularItemFetched).description || "",
-          price: (item as IPopularItemFetched).price,
-          originalPrice: (item as IPopularItemFetched).originalPrice || "",
-          rating: (item as IPopularItemFetched).rating,
-          reviewCount: (item as IPopularItemFetched).reviewCount || 0,
-          cookingTime: (item as IPopularItemFetched).cookingTime || "",
-          isPopular: (item as IPopularItemFetched).isPopular || false,
-          discount: (item as IPopularItemFetched).discount || "",
-          category: (item as IPopularItemFetched).category,
-          restaurantId: (item as IPopularItemFetched).restaurantId,
-          needsTakeawayContainer:
-            (item as IPopularItemFetched).needsTakeawayContainer || false,
-          extraPortion: (item as IPopularItemFetched).extraPortion || false,
-        };
-        break;
-      case "discount":
-        formData = {
-          ...formData,
-          title: (item as IDiscountFetched).title,
-          description: (item as IDiscountFetched).description || "",
-          discountType: (item as IDiscountFetched).discountType,
-          discountValue: (item as IDiscountFetched).discountValue,
-          originalPrice: (item as IDiscountFetched).originalPrice,
-          discountedPrice: (item as IDiscountFetched).discountedPrice,
-          validFrom: (item as IDiscountFetched).validFrom,
-          validTo: (item as IDiscountFetched).validTo,
-          minOrderValue: (item as IDiscountFetched).minOrderValue,
-          maxUses: (item as IDiscountFetched).maxUses,
-          code: (item as IDiscountFetched).code,
-          appliesTo: (item as IDiscountFetched).appliesTo,
-          targetId: (item as IDiscountFetched).targetId,
-          isActive: (item as IDiscountFetched).isActive,
-        };
-        break;
-      default:
-        break;
+
+    if (type === "discount") {
+      const d = item as IDiscountFetched;
+      formData = { ...formData, ...d };
+    } else {
+      const i = item as
+        | IMenuItemFetched
+        | IPopularItemFetched
+        | IFeaturedItemFetched;
+      formData = {
+        ...formData,
+        name: i.name,
+        description: i.description || "",
+        price: i.price,
+        rating: "rating" in i ? i.rating : undefined,
+        category: i.category,
+        restaurantId: i.restaurantId,
+      };
+
+      if (type === "menu") {
+        const m = i as IMenuItemFetched;
+        formData.originalPrice = m.originalPrice || "";
+        formData.cookTime = m.cookTime || "";
+      } else if (type === "popular") {
+        const p = i as IPopularItemFetched;
+        formData.originalPrice = p.originalPrice || "";
+        formData.cookingTime = p.cookingTime || "";
+        formData.reviewCount = p.reviewCount || 0;
+        formData.isPopular = p.isPopular || false;
+        formData.discount = p.discount || "";
+      } else if (type === "featured") {
+        formData.rating = (i as IFeaturedItemFetched).rating || 0;
+      }
     }
+
     setEditFormData(formData);
 
+    // === Initialize pendingExtras (only normal extras, exclude packs) ===
+    const currentExtrasIds: string[] = (item as any).extras || [];
+    const initialAttached = availableExtras.filter((ex) =>
+      currentExtrasIds.includes(ex.$id),
+    );
+    setPendingExtras(initialAttached);
+
     setNewImage(null);
+
+    // Load vendor data (packs + extras)
+    try {
+      const restaurant = await dispatch(
+        getAsyncRestaurantById((item as any).restaurantId),
+      ).unwrap();
+      const vendorId = restaurant.vendorId;
+
+      setCurrentVendorId(vendorId || "");
+
+      if (vendorId) {
+        const allExtras = (await dispatch(
+          listAsyncExtras(vendorId),
+        ).unwrap()) as IFetchedExtras[];
+        const packs = (await dispatch(
+          listAsyncPacks(vendorId),
+        ).unwrap()) as IPackFetched[];
+
+        setAvailableExtras(allExtras);
+        setAvailablePacks(packs);
+
+        // Detect Big/Medium pack
+        const sortedPacks = [...packs].sort((a, b) => a.price - b.price);
+        setMediumPack(sortedPacks[0] || null);
+        setBigPack(sortedPacks[sortedPacks.length - 1] || null);
+
+        const currentExtrasIdsFull: string[] = (item as any).extras || [];
+        const hasBigPack =
+          sortedPacks[sortedPacks.length - 1] &&
+          currentExtrasIdsFull.includes(
+            sortedPacks[sortedPacks.length - 1].$id,
+          );
+
+        formData.extraPortion = hasBigPack;
+        setEditFormData(formData);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not load extras/packs");
+    }
+
     setShowEditModal(true);
   };
 
@@ -606,7 +634,7 @@ const AddFoodItemForm = () => {
       | IFeaturedItemFetched
       | IPopularItemFetched
       | IDiscountFetched,
-    type: "menu" | "featured" | "popular" | "discount"
+    type: "menu" | "featured" | "popular" | "discount",
   ) => {
     setSelectedItem(item);
     setSubActiveTab(type);
@@ -686,15 +714,15 @@ const AddFoodItemForm = () => {
     validateEnv();
 
   const getBucketId = (
-    type: "menu" | "featured" | "popular" | "discount"
+    type: "menu" | "featured" | "popular" | "discount",
   ): string => {
     return type === "menu"
       ? menuBucketId
       : type === "featured"
-      ? featuredBucketId
-      : type === "discount"
-      ? discountBucketId
-      : popularBucketId;
+        ? featuredBucketId
+        : type === "discount"
+          ? discountBucketId
+          : popularBucketId;
   };
 
   const renderItemCard = (
@@ -703,7 +731,7 @@ const AddFoodItemForm = () => {
       | IPopularItemFetched
       | IFeaturedItemFetched
       | IDiscountFetched,
-    type: "menu" | "featured" | "popular" | "discount"
+    type: "menu" | "featured" | "popular" | "discount",
   ) => {
     let displayName: string;
     let displayDescription: string;
@@ -1057,7 +1085,6 @@ const AddFoodItemForm = () => {
         )}
         {activeTab === "extras" && <ExtrasManagementForm />}
       </main>
-
       {/* Edit Modal */}
       {showEditModal && selectedItem && (
         <EditItemModal
@@ -1072,7 +1099,14 @@ const AddFoodItemForm = () => {
           isUpdating={isUpdating}
           setIsUpdating={setIsUpdating}
           restaurantName={restaurantName}
-          setRestaurantName={setRestaurantName}
+          pendingExtras={pendingExtras}
+          setPendingExtras={setPendingExtras}
+          availableExtras={availableExtras}
+          mediumPack={mediumPack}
+          bigPack={bigPack}
+          showExtrasModal={showExtrasModalInEdit}
+          setShowExtrasModal={setShowExtrasModalInEdit}
+          currentVendorId={currentVendorId}
         />
       )}
       {/* Delete Confirmation Modal */}
@@ -1086,6 +1120,6 @@ const AddFoodItemForm = () => {
       )}
     </div>
   );
-};
+};;;;
 
 export default AddFoodItemForm;

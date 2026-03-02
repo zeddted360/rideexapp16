@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useDispatch, useSelector } from "react-redux";
 import { X, Clock, Settings } from "lucide-react";
 import { fileUrl, validateEnv, storage, client } from "@/utils/appwrite";
-import { Models } from "appwrite";
 import toast from "react-hot-toast";
 import { IRestaurantFetched } from "../../types/types";
 import { AppDispatch, RootState } from "@/state/store";
@@ -29,22 +28,61 @@ interface CategoryItem {
   icon?: any;
 }
 
+const getTimeSeed = (): number => {
+  return Math.floor(Date.now() / (60 * 1000)) //Auto-shuffle every 1 minute; 
+};
+
+const seededShuffle = <T,>(array: T[], seed: number): T[] => {
+  const result = [...array];
+  let currentSeed = seed;
+
+  for (let i = result.length - 1; i > 0; i--) {
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    const j = Math.floor((currentSeed / 233280) * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+};
+
 const MiniNavigation = () => {
   const [isClient, setIsClient] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<
     CategoryItem | IRestaurantFetched | null
-  >(null);
+    >(null);
+  const [currentSeed, setCurrentSeed] = useState(getTimeSeed());
   const dispatch = useDispatch<AppDispatch>();
   const { restaurants, loading, error } = useSelector(
-    (state: RootState) => state.restaurant
+    (state: RootState) => state.restaurant,
   );
   const { logos } = useSelector((state: RootState) => state.categoryLogos);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const { restaurantBucketId, categoryLogosBucketId } = validateEnv();
 
+
+  const availableRestaurants = React.useMemo(
+    () => restaurants.filter((r) => r.isPaused !== true),
+    [restaurants],
+  );
+
+  const shuffledRestaurants = React.useMemo(() => {
+    if (availableRestaurants.length === 0) return [];
+    return seededShuffle(availableRestaurants, currentSeed);
+  }, [availableRestaurants, currentSeed]);
+
+  // Auto-shuffle every 1 minute
+  useEffect(() => {
+    const interval = setInterval(
+      () => {
+        setCurrentSeed(getTimeSeed());
+      },
+      60 * 1000,
+    );
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     setIsClient(true);
@@ -67,7 +105,7 @@ const MiniNavigation = () => {
       unsubscribe();
     };
   }, [categoryLogosBucketId, isClient, dispatch]);
-  
+
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -85,15 +123,6 @@ const MiniNavigation = () => {
         : "/shopping_cart.jpg",
     },
     {
-      id: "shops",
-      title: "Shops",
-      href: "/shops",
-      available: false,
-      image: logos.shops
-        ? fileUrl(categoryLogosBucketId, logos.shops.$id)
-        : "/home.jpg",
-    },
-    {
       id: "pharmacy",
       title: "Pharmacy",
       href: "/pharmacy",
@@ -102,11 +131,20 @@ const MiniNavigation = () => {
         ? fileUrl(categoryLogosBucketId, logos.pharmacy.$id)
         : "/hospital.jpg",
     },
+    {
+      id: "dispatch",
+      title: "Dispatch",
+      href: "/dispatch",
+      available: false,
+      image: logos.shops
+        ? fileUrl(categoryLogosBucketId, logos.shops.$id)
+        : "/home.jpg",
+    },
   ];
 
   const handleItemClick = (
     item: CategoryItem | IRestaurantFetched,
-    e: React.MouseEvent<HTMLButtonElement>
+    e: React.MouseEvent<HTMLButtonElement>,
   ) => {
     e.preventDefault();
     setSelectedItem(item);
@@ -130,7 +168,7 @@ const MiniNavigation = () => {
 
   const renderCategoryItem = (
     item: CategoryItem | IRestaurantFetched,
-    isExploreItem: boolean = false
+    isExploreItem: boolean = false,
   ) => {
     const isRestaurant = "$id" in item;
     const isAvailable = isRestaurant ? true : (item as CategoryItem).available;
@@ -150,7 +188,7 @@ const MiniNavigation = () => {
       isRestaurant && (item as IRestaurantFetched).logo
         ? fileUrl(
             restaurantBucketId,
-            (item as IRestaurantFetched).logo as string
+            (item as IRestaurantFetched).logo as string,
           )
         : (item as CategoryItem).image || "/placeholder.jpg";
 
@@ -199,7 +237,7 @@ const MiniNavigation = () => {
           key={itemKey}
           onClick={(e) => handleItemClick(item, e)}
           type="button"
-          aria-label={`${displayName} - Coming Soon`}
+          // aria-label={`${displayName} - Coming Soon`}
           className="group flex flex-col items-center min-w-[100px] sm:min-w-[110px] snap-center transition-transform duration-300 hover:scale-105"
         >
           <div
@@ -221,9 +259,6 @@ const MiniNavigation = () => {
                 quality={85}
               />
             )}
-            <div className="absolute top-0 right-0 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center translate-x-1/3 -translate-y-1/3 shadow-md ring-1 ring-white/50">
-              <Clock className="w-3 h-3 text-white" />
-            </div>
           </div>
           <span className="mt-3 text-sm sm:text-base font-semibold text-gray-800 dark:text-gray-100 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-300 text-center opacity-70 group-hover:opacity-100 line-clamp-1">
             {displayName}
@@ -315,7 +350,7 @@ const MiniNavigation = () => {
               Coming Soon!
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed px-4">
-              {`We're working hard to bring you ${displayName.toLowerCase()} services. Stay tuned for updates!`}
+              {`We're working hard to bring you ${displayName.toLowerCase()} services. ${displayName === "Dispatch" ? "You can chat with support to make a delivery online" : "Stay tuned for updates!"}`}
             </p>
           </div>
 
@@ -383,9 +418,9 @@ const MiniNavigation = () => {
               </p>
             ) : (
               <div className="flex items-center justify-start gap-10 sm:gap-12 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4">
-                {restaurants
-                  .filter((r) => r.isPaused !== true)
-                  .map((restaurant) => renderCategoryItem(restaurant, true))}
+                {shuffledRestaurants.map((restaurant) =>
+                  renderCategoryItem(restaurant, true),
+                )}
               </div>
             )}
           </div>
@@ -409,6 +444,6 @@ const MiniNavigation = () => {
 
   if (!isClient) return content;
   return content;
-};
+};;
 
 export default MiniNavigation;
