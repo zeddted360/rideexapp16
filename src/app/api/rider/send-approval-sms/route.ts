@@ -4,7 +4,6 @@ import nodemailer from "nodemailer";
 export async function POST(req: NextRequest) {
   // Extract request body
   const { email, fullName, message } = await req.json();
-  console.log("the datal is ", email, fullName, message)
 
   // Basic validation
   const requiredFields = [email, fullName, message];
@@ -17,17 +16,19 @@ export async function POST(req: NextRequest) {
 
   // Set up Nodemailer transporter for Gmail
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: process.env.SMTP_HOST!,
+    port: Number(process.env.SMTP_PORT),
+    secure: true,
     auth: {
-      user: process.env.SMTP_USER, // Your Gmail address
-      pass: process.env.SMTP_PASS, // Your Gmail app-specific password
+      user: process.env.WEB_ADMIN_EMAIL!,
+      pass: process.env.SMTP_PASS!,
     },
   });
 
   try {
     // Email to Rider
     const riderMailOptions = {
-        from: process.env.SMTP_USER,
+        from: `"Rideex Logistics" <${process.env.WEB_ADMIN_EMAIL}>`,
         to: email,
         subject: "RideEx Rider Application Approved",
         text: `Dear ${fullName},\n\n${message}\n\nBest regards,\nRideEx Team`,

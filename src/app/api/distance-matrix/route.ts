@@ -19,14 +19,7 @@ export async function GET(request: NextRequest) {
     const response = await fetch(url);
     const data = await response.json();
 
-    // Log the request for debugging
-    console.log('Distance Matrix API Request:', {
-      origins,
-      destinations,
-      status: data.status,
-      elements: data.rows?.[0]?.elements?.[0]?.status
-    });
-
+  
     return NextResponse.json(data);
   } catch (error) {
     console.error('Distance Matrix API error:', error);

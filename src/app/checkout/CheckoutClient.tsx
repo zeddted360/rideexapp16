@@ -689,20 +689,56 @@ export default function CheckoutClient() {
         .replace(/_/g, " ")
         .toLowerCase()}.`;
 
-      const smsResult = await sendOrderFeedback({
-        number: formatNigerianPhone(phoneNumber),
-        message: customerMessage,
-        adminNumber: formatNigerianPhone(
-          process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418",
-        ),
-        adminMessage: adminMessage,
-      });
+          const smsResult = await sendOrderFeedback({
+            number: formatNigerianPhone(phoneNumber),
+            message: customerMessage,
+            adminNumber: formatNigerianPhone(
+              process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418",
+            ),
+            adminMessage: adminMessage,
+          });
 
-      if (!smsResult.success) {
-        console.warn("SMS failed, but order is confirmed");
-      }
-      setShowConfirmation(false);
-      router.push("/order-confirmation");
+          if (!smsResult.success) {
+            console.warn("SMS failed, but order is confirmed");
+          }
+          // ==================== NEW: SEND EMAIL TO ADMIN ====================
+          try {
+            const emailItems = filteredOrders.map((item: ICartItemFetched) => ({
+              name: item.name || "Menu Item",
+              quantity: item.quantity || 1,
+              price: Number(item.price),
+            }));
+
+            await fetch("/api/send-admin-order-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId,
+                riderCode,
+                customerName: user?.fullName || "Customer",
+                customerPhone: phoneNumber,
+                address,
+                subtotal,
+                deliveryFee: order.deliveryFee,
+                serviceCharge: SERVICE_CHARGE,
+                total: order.total,
+                paymentMethod,
+                deliveryTime: getDeliveryTimeLabel(
+                  deliveryDay,
+                  selectedTimeSlot,
+                  timeSlots,
+                ),
+                deliveryDistance: order.deliveryDistance,
+                deliveryDuration: order.deliveryDuration,
+                items: emailItems,
+                restaurantName: restaurant?.name,
+              }),
+            });
+          } catch (emailErr) {
+            console.warn("Admin email failed but order succeeded:", emailErr);
+          }
+          setShowConfirmation(false);
+          router.push("/order-confirmation");
     } catch (err) {
       handleError(
         `Failed to place order: ${
