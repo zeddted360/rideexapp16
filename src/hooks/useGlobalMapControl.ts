@@ -17,6 +17,7 @@ export function useGlobalMapControl() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string>("");
 
+
   useEffect(() => {
     const fetchGlobalStatus = async () => {
       try {
