@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState, useMemo } from "react";
 import {
   Search,
@@ -54,14 +53,27 @@ import { Button } from "./ui/button";
 import Image from "next/image";
 import { IFetchedExtras } from "../../types/types";
 import toast from "react-hot-toast";
-import { cancelBookedOrder, updateBookedOrderAsync, deleteBookedOrder } from "@/state/bookedOrdersSlice";
+import {
+  updateBookedOrderAsync,
+  deleteBookedOrder,
+} from "@/state/bookedOrdersSlice";
 import { Query } from "appwrite";
 import { listAsyncPromoOfferItems } from "@/state/offerSlice";
 
 // ──────────────────────────────────────────────────────────────────────────────
+// CUP SIZE HELPERS
+// ──────────────────────────────────────────────────────────────────────────────
+const isSizeOption = (extra: any): boolean =>
+  !!(extra as IFetchedExtras).isSizeOption === true;
+
+const parsePrice = (p: string | number): number =>
+  typeof p === "string" ? Number(p.replace(/[₦,]/g, "")) : p;
+
+const packagingRegex = /(container|pack|takeout|takeaway|plastic|box|bag)/i;
+
+// ──────────────────────────────────────────────────────────────────────────────
 // TYPES & UTILITIES
 // ──────────────────────────────────────────────────────────────────────────────
-
 interface OrdersTabProps {
   orders: IBookedOrderFetched[];
   loading: boolean;
@@ -76,17 +88,15 @@ interface OrdersTabProps {
   ordersPerPage: number;
   handleStatusChange: (
     orderId: string,
-    newStatus: OrderStatus
+    newStatus: OrderStatus,
   ) => Promise<void>;
   ORDER_STATUSES: string[];
   branches: any[];
 }
-
 interface ItemWithBucket {
   item: any;
   bucketId: string | null;
 }
-
 interface StructuredItem {
   itemId: string;
   quantity: number;
@@ -94,12 +104,10 @@ interface StructuredItem {
   priceAtOrder: number;
   specialInstructions?: string;
 }
-
 interface ParsedExtra {
   extraId: string;
   quantity: number;
 }
-
 interface BranchDistance {
   address: string;
   distanceText: string;
@@ -109,24 +117,18 @@ interface BranchDistance {
 
 function cleanAddress(address: string): string {
   let cleaned = address.trim().replace(/\s+/g, " ");
-  if (!cleaned.toLowerCase().includes("nigeria")) {
-    cleaned += ", Nigeria";
-  }
+  if (!cleaned.toLowerCase().includes("nigeria")) cleaned += ", Nigeria";
   return cleaned;
 }
 
 const parseExtraId = (extraIdStr: string): ParsedExtra => {
   const [extraId, quantityStr] = extraIdStr.split("_");
-  return {
-    extraId,
-    quantity: parseInt(quantityStr, 10) || 1,
-  };
+  return { extraId, quantity: parseInt(quantityStr, 10) || 1 };
 };
 
-// ────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────────
 // BULK RESTAURANT FETCHING HOOK
-// ────────────────────────────────────────────────────────────────
-
+// ──────────────────────────────────────────────────────────────────────────────
 function useRestaurantsByIds(ids: string[]) {
   const [restaurants, setRestaurants] = useState<
     Record<string, IRestaurantFetched>
@@ -140,40 +142,32 @@ function useRestaurantsByIds(ids: string[]) {
       setLoading(false);
       return;
     }
-
     const uniqueIds = [...new Set(ids.filter(Boolean))];
-
     const fetchRestaurants = async () => {
       setLoading(true);
       setError(null);
-
       try {
         const { databaseId, restaurantsCollectionId } = validateEnv();
-
         const chunkSize = 100;
-        const chunks = [];
+        const chunks: string[][] = [];
         for (let i = 0; i < uniqueIds.length; i += chunkSize) {
           chunks.push(uniqueIds.slice(i, i + chunkSize));
         }
-
         const allResults: IRestaurantFetched[] = [];
-
         for (const chunk of chunks) {
           const response = await databases.listDocuments(
             databaseId,
             restaurantsCollectionId,
-            [Query.equal("$id", chunk)]
+            [Query.equal("$id", chunk)],
           );
           allResults.push(
-            ...(response.documents as unknown as IRestaurantFetched[])
+            ...(response.documents as unknown as IRestaurantFetched[]),
           );
         }
-
         const map: Record<string, IRestaurantFetched> = {};
         allResults.forEach((doc) => {
           map[doc.$id] = doc;
         });
-
         setRestaurants(map);
       } catch (err: any) {
         console.error("Failed to load restaurants:", err);
@@ -183,7 +177,6 @@ function useRestaurantsByIds(ids: string[]) {
         setLoading(false);
       }
     };
-
     fetchRestaurants();
   }, [ids.join(",")]);
 
@@ -193,7 +186,6 @@ function useRestaurantsByIds(ids: string[]) {
 // ──────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ──────────────────────────────────────────────────────────────────────────────
-
 export default function OrdersTab({
   orders,
   loading: ordersLoading,
@@ -211,19 +203,18 @@ export default function OrdersTab({
   branches,
 }: OrdersTabProps) {
   const dispatch = useDispatch<AppDispatch>();
-
   const menuItems = useSelector((state: RootState) => state.menuItem.menuItems);
   const featuredItems = useSelector(
-    (state: RootState) => state.featuredItem.featuredItems
+    (state: RootState) => state.featuredItem.featuredItems,
   );
   const popularItems = useSelector(
-    (state: RootState) => state.popularItem.popularItems
+    (state: RootState) => state.popularItem.popularItems,
   );
   const { discounts } = useSelector((state: RootState) => state.discounts);
   const { offersItem } = useSelector((state: RootState) => state.promoOffer);
 
   const [customerNames, setCustomerNames] = useState<{ [key: string]: string }>(
-    {}
+    {},
   );
   const [fetchingNames, setFetchingNames] = useState(false);
   const [selectedOrder, setSelectedOrder] =
@@ -252,24 +243,18 @@ export default function OrdersTab({
     dispatch(listAsyncPromoOfferItems());
   }, [dispatch]);
 
-  // ────────────────────────────────────────────────────────────────
-  // IMPROVED CUSTOMER NAME FETCHING (FIXED VERSION)
-  // ────────────────────────────────────────────────────────────────
+  // ── Customer name fetching ──
   useEffect(() => {
     if (orders.length === 0 || fetchingNames) return;
-
     const uniqueCustomerIds = [
       ...new Set(
         orders
           .map((order) => order.customerId)
-          .filter((id) => id && !customerNames[id])
+          .filter((id) => id && !customerNames[id]),
       ),
     ];
-
     if (uniqueCustomerIds.length === 0) return;
-
     setFetchingNames(true);
-
     const fetchMissingCustomerNames = async () => {
       try {
         const promises = uniqueCustomerIds.map(async (customerId) => {
@@ -277,21 +262,14 @@ export default function OrdersTab({
             const response = (await databases.getDocument(
               validateEnv().databaseId,
               validateEnv().userCollectionId,
-              customerId
-            )) as IUserFectched;
-
-            return {
               customerId,
-              name: response.fullName || "Unknown",
-            };
-          } catch (err) {
-            console.error(`Failed to fetch user ${customerId}:`, err);
+            )) as IUserFectched;
+            return { customerId, name: response.fullName || "Unknown" };
+          } catch {
             return { customerId, name: "Unknown Customer" };
           }
         });
-
         const results = await Promise.all(promises);
-
         setCustomerNames((prev) => {
           const updates = { ...prev };
           results.forEach(({ customerId, name }) => {
@@ -305,41 +283,28 @@ export default function OrdersTab({
         setFetchingNames(false);
       }
     };
-
     fetchMissingCustomerNames();
   }, [orders, customerNames]);
 
   const findItemById = (id: string): ItemWithBucket => {
-    let item:
-      | IMenuItemFetched
-      | IFeaturedItemFetched
-      | IPopularItemFetched
-      | IDiscountFetched
-      | IPromoOfferFetched
-      | undefined = menuItems.find((item) => item.$id === id);
+    let item: any = menuItems.find((i) => i.$id === id);
     if (item) return { item, bucketId: validateEnv().menuBucketId };
-
-    item = featuredItems.find((item) => item.$id === id);
+    item = featuredItems.find((i) => i.$id === id);
     if (item) return { item, bucketId: validateEnv().featuredBucketId };
-
-    item = popularItems.find((item) => item.$id === id);
+    item = popularItems.find((i) => i.$id === id);
     if (item) return { item, bucketId: validateEnv().popularBucketId };
-
-    item = discounts.find((item) => item.$id === id);
+    item = discounts.find((i) => i.$id === id);
     if (item) return { item, bucketId: validateEnv().discountBucketId };
-
-    item = offersItem.find((item) => item.$id === id);
+    item = offersItem.find((i) => i.$id === id);
     if (item) return { item, bucketId: validateEnv().promoOfferBucketId };
-
     return { item: null, bucketId: null };
   };
 
   const restaurantIdsForCurrentOrder = useMemo(() => {
     if (!selectedOrder?.items) return [];
-
     try {
       const parsed = selectedOrder.items.map((str) =>
-        JSON.parse(str)
+        JSON.parse(str),
       ) as StructuredItem[];
       const ids = parsed
         .map((item) => findItemById(item.itemId).item?.restaurantId)
@@ -354,73 +319,56 @@ export default function OrdersTab({
     useRestaurantsByIds(restaurantIdsForCurrentOrder);
 
   useEffect(() => {
-    if (selectedOrder && selectedOrder.items) {
-      try {
-        const parsedItems = selectedOrder.items.map((itemStr: string) =>
-          JSON.parse(itemStr)
-        ) as StructuredItem[];
-        setStructuredItems(parsedItems);
+    if (!selectedOrder?.items) return;
+    try {
+      const parsedItems = selectedOrder.items.map((s) =>
+        JSON.parse(s),
+      ) as StructuredItem[];
+      setStructuredItems(parsedItems);
 
-        // Fetch extras
-        setFetchingExtras(true);
-        const extraIds = new Set<string>();
-        parsedItems.forEach((structuredItem) => {
-          structuredItem.extrasIds.forEach((extraIdStr: string) => {
-            const [extraId] = extraIdStr.split("_");
-            if (extraId) extraIds.add(extraId);
-          });
+      setFetchingExtras(true);
+      const extraIds = new Set<string>();
+      parsedItems.forEach((si) => {
+        si.extrasIds.forEach((str) => {
+          const [id] = str.split("_");
+          if (id) extraIds.add(id);
         });
+      });
 
-        const extraIdsToFetch = Array.from(extraIds).filter(
-          (id) => !fetchedExtras[id]
-        );
+      const toFetch = Array.from(extraIds).filter((id) => !fetchedExtras[id]);
+      if (toFetch.length > 0) {
+        (async () => {
+          try {
+            const { databaseId, extrasCollectionId, packsCollectionId } =
+              validateEnv();
+            const [extrasRes, packsRes] = await Promise.all([
+              databases.listDocuments(databaseId, extrasCollectionId, [
+                Query.equal("$id", toFetch),
+              ]),
+              databases.listDocuments(databaseId, packsCollectionId, [
+                Query.equal("$id", toFetch),
+              ]),
+            ]);
+            const merged: { [key: string]: IFetchedExtras | IPackFetched } = {};
+            [...extrasRes.documents, ...packsRes.documents].forEach(
+              (doc: any) => {
+                merged[doc.$id] = doc;
+              },
+            );
+            setFetchedExtras((prev) => ({ ...prev, ...merged }));
+          } catch (err) {
+            console.error("Failed to fetch extras/packs:", err);
+          } finally {
+            setFetchingExtras(false);
+          }
+        })();
+      } else {
+        setFetchingExtras(false);
+      }
 
-        if (extraIdsToFetch.length > 0) {
-          const fetchExtrasAndPacks = async () => {
-            try {
-              const { databaseId, extrasCollectionId, packsCollectionId } =
-                validateEnv();
-
-              const extrasResponse = await databases.listDocuments(
-                databaseId,
-                extrasCollectionId,
-                [Query.equal("$id", extraIdsToFetch)]
-              );
-              const fetchedExtrasArr =
-                extrasResponse.documents as unknown as IFetchedExtras[];
-
-              const packsResponse = await databases.listDocuments(
-                databaseId,
-                packsCollectionId,
-                [Query.equal("$id", extraIdsToFetch)]
-              );
-              const fetchedPacks =
-                packsResponse.documents as unknown as IPackFetched[];
-
-              const newExtrasAndPacks: {
-                [key: string]: IFetchedExtras | IPackFetched;
-              } = {};
-              [...fetchedExtrasArr, ...fetchedPacks].forEach((doc) => {
-                newExtrasAndPacks[doc.$id] = doc;
-              });
-
-              setFetchedExtras((prev) => ({ ...prev, ...newExtrasAndPacks }));
-            } catch (error) {
-              console.error("Failed to fetch extras/packs:", error);
-            } finally {
-              setFetchingExtras(false);
-            }
-          };
-
-          fetchExtrasAndPacks();
-        } else {
-          setFetchingExtras(false);
-        }
-
-        // Fetch branch distances
-        const fetchDistances = async () => {
-          if (!selectedOrder.address) return;
-
+      // Fetch branch distances
+      if (selectedOrder.address && Object.keys(restaurantDataMap).length > 0) {
+        (async () => {
           setFetchingDistances(true);
           try {
             const cleanDest = cleanAddress(selectedOrder.address);
@@ -428,37 +376,25 @@ export default function OrdersTab({
             const restoBranchMap: {
               [index: number]: { restoId: string; branchIndex: number };
             } = {};
-
             Object.entries(restaurantDataMap).forEach(([restoId, resto]) => {
               (resto.addresses || []).forEach(
                 (addr: string, branchIndex: number) => {
-                  const cleanAddr = cleanAddress(addr);
-                  const currentIndex = allOrigins.length;
-                  allOrigins.push(cleanAddr);
-                  restoBranchMap[currentIndex] = { restoId, branchIndex };
-                }
+                  restoBranchMap[allOrigins.length] = { restoId, branchIndex };
+                  allOrigins.push(cleanAddress(addr));
+                },
               );
             });
-
             if (allOrigins.length === 0) return;
-
-            const response = await fetch(
-              `/api/distance-matrix?origins=${allOrigins
-                .map(encodeURIComponent)
-                .join("|")}&destinations=${encodeURIComponent(cleanDest)}`
+            const res = await fetch(
+              `/api/distance-matrix?origins=${allOrigins.map(encodeURIComponent).join("|")}&destinations=${encodeURIComponent(cleanDest)}`,
             );
-            const data = await response.json();
-
-            if (data.status !== "OK") {
-              console.error("Distance Matrix failed:", data);
-              return;
-            }
-
+            const data = await res.json();
+            if (data.status !== "OK") return;
             const distances: { [restoId: string]: BranchDistance[] } = {};
             data.rows.forEach((row: any, i: number) => {
               const el = row.elements[0];
               if (el.status === "OK") {
-                const { restoId, branchIndex } = restoBranchMap[i];
+                const { restoId } = restoBranchMap[i];
                 if (!distances[restoId]) distances[restoId] = [];
                 distances[restoId].push({
                   address: allOrigins[i],
@@ -468,27 +404,23 @@ export default function OrdersTab({
                 });
               }
             });
-
             Object.keys(distances).forEach((restoId) => {
               distances[restoId].sort(
-                (a, b) => a.distanceValue - b.distanceValue
+                (a, b) => a.distanceValue - b.distanceValue,
               );
             });
-
             setBranchDistances(distances);
           } catch (err) {
             console.error("Failed to calculate distances:", err);
           } finally {
             setFetchingDistances(false);
           }
-        };
-
-        fetchDistances();
-      } catch (err) {
-        console.error("Failed to parse structured items:", err);
-        setStructuredItems([]);
-        setFetchingExtras(false);
+        })();
       }
+    } catch (err) {
+      console.error("Failed to parse structured items:", err);
+      setStructuredItems([]);
+      setFetchingExtras(false);
     }
   }, [selectedOrder, restaurantDataMap]);
 
@@ -498,7 +430,7 @@ export default function OrdersTab({
       setCopiedField(field);
       toast.success(`${field} copied!`);
       setTimeout(() => setCopiedField(null), 2000);
-    } catch (err) {
+    } catch {
       toast.error("Failed to copy");
     }
   };
@@ -520,7 +452,7 @@ export default function OrdersTab({
     setIsDeleting(true);
     try {
       await dispatch(
-        updateBookedOrderAsync({ orderId, orderData: { status: "cancelled" } })
+        updateBookedOrderAsync({ orderId, orderData: { status: "cancelled" } }),
       ).unwrap();
       toast.success("Order cancelled successfully");
       setSelectedOrderToCancel(null);
@@ -531,114 +463,69 @@ export default function OrdersTab({
     }
   };
 
-  // ────────────────────────────────────────────────────────────────
-  // COPY DELIVERY INFORMATION (NEW)
-  // ────────────────────────────────────────────────────────────────
   const handleCopyDeliveryInfo = () => {
     if (!selectedOrder) return;
-
     const customerAddress = selectedOrder.address || "Unknown";
     const phone = selectedOrder.phone || "N/A";
-    const maskedPhone =
-      phone.length >= 10
-        ? phone.slice(0, 4) + "XXXXXX" + phone.slice(-1)
-        : phone;
-    const orderId = selectedOrder.riderCode
-      ? `${selectedOrder.riderCode.toUpperCase()}`
-      : selectedOrder.orderId || "N/A";
+    const orderId =
+      selectedOrder.riderCode?.toUpperCase() || selectedOrder.orderId || "N/A";
     const deliveryFeeAmount = selectedOrder.deliveryFee || 0;
 
     let text = "🚴 New Delivery information\n\n";
-
-    // Handle pickup(s)
     const uniqueRestoIds = [
       ...new Set(
         structuredItems
           .map((s) => findItemById(s.itemId).item?.restaurantId)
-          .filter(Boolean) as string[]
+          .filter(Boolean) as string[],
       ),
     ];
 
     if (uniqueRestoIds.length === 1) {
-      const restoId = uniqueRestoIds[0];
-      const resto = restaurantDataMap[restoId];
-      const closest = branchDistances[restoId]?.[0];
-      
-      const pickupAddress = closest
-        ? closest.address
-        : resto?.addresses?.[0] || "Unknown";
-      
-      const pickupName = resto?.name || "Unknown Restaurant";
-
-      const pickupQuery = encodeURIComponent(pickupName);
-      const dropoffQuery = encodeURIComponent(customerAddress);
-      const routeOrigin = encodeURIComponent(pickupName);
-      const routeDest = encodeURIComponent(customerAddress);
-
-      text += `📍 Pickup (Restaurant):\nhttps://www.google.com/maps/search/?api=1&query=${pickupQuery}\n\n`;
-      text += `📍 Drop-off (Customer):\nhttps://www.google.com/maps/search/?api=1&query=${dropoffQuery}\n\n`;
-      text += `🧭 Full Route:\nhttps://www.google.com/maps/dir/?api=1&origin=${routeOrigin}&destination=${routeDest}\n\n`;
+      const pickupName =
+        restaurantDataMap[uniqueRestoIds[0]]?.name || "Unknown Restaurant";
+      text += `📍 Pickup (Restaurant):\nhttps://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupName)}\n\n`;
+      text += `📍 Drop-off (Customer):\nhttps://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}\n\n`;
+      text += `🧭 Full Route:\nhttps://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickupName)}&destination=${encodeURIComponent(customerAddress)}\n\n`;
     } else {
       text += "📍 Pickups (Multiple Restaurants):\n";
       uniqueRestoIds.forEach((restoId) => {
-        const resto = restaurantDataMap[restoId];
-        const closest = branchDistances[restoId]?.[0];
-        const pickupAddress = closest ? closest.address : "Unknown";
-        const pickupName = resto?.name || "Unknown Restaurant";
-        const pickupQuery = encodeURIComponent(pickupName);
-
-        text += `${pickupName}:\nhttps://www.google.com/maps/search/?api=1&query=${pickupQuery}\n\n`;
+        const pickupName =
+          restaurantDataMap[restoId]?.name || "Unknown Restaurant";
+        text += `${pickupName}:\nhttps://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupName)}\n\n`;
       });
-      const dropoffQuery = encodeURIComponent(customerAddress);
-      text += `📍 Drop-off (Customer):\nhttps://www.google.com/maps/search/?api=1&query=${dropoffQuery}\n\n`;
+      text += `📍 Drop-off (Customer):\nhttps://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddress)}\n\n`;
       text += "Note: Multiple pickups required – plan route accordingly.\n\n";
     }
 
-    text += `📞 Customer: ${maskedPhone}\n`;
+    text += `📞 Customer: ${phone}\n`;
     text += `🧾 Order ID: ${orderId}\n`;
-    text += `💰 Delivery Fee Amount: ${deliveryFeeAmount}`;
-
+    text += `💰 Delivery Fee Amount: ₦${deliveryFeeAmount}`;
     handleCopy(text.trim(), "Delivery Information");
   };
 
-  // ────────────────────────────────────────────────────────────────
-  // COPY CLOSEST BRANCH (ONLY ADDRESS, NO DISTANCE)
-  // ────────────────────────────────────────────────────────────────
   const handleCopyClosestBranch = (restoId: string) => {
-    const branches = branchDistances[restoId] || [];
-    if (branches.length === 0) return;
-
-    const closest = branches[0];
-    handleCopy(closest.address, `Closest Branch Address (${restoId})`);
+    const list = branchDistances[restoId] || [];
+    if (list.length === 0) return;
+    handleCopy(list[0].address, `Closest Branch Address (${restoId})`);
   };
 
-  // ────────────────────────────────────────────────────────────────
-  // COPY ORDER ITEMS SUMMARY (UPDATED FORMAT)
-  // ────────────────────────────────────────────────────────────────
+  // ── FIX 1: effectiveUnitPrice (size-aware) used in copy summary ──
   const handleCopyOrderItems = () => {
     if (!selectedOrder || structuredItems.length === 0) return;
-
     let summary = "Order Items Summary\n═══════════════════════════════\n\n";
-
-    const orderId = selectedOrder.riderCode
-      ? `${selectedOrder.riderCode.toUpperCase()}`
-      : selectedOrder.orderId || "N/A";
-
+    const orderId =
+      selectedOrder.riderCode?.toUpperCase() || selectedOrder.orderId || "N/A";
     summary += `Order ID: ${orderId}\n`;
-
     const date = new Date(selectedOrder.createdAt);
-    summary += `Date: ${date.toLocaleDateString(
-      "en-GB"
-    )}, ${date.toLocaleTimeString()}\n\n`;
+    summary += `Date: ${date.toLocaleDateString("en-GB")}, ${date.toLocaleTimeString()}\n\n`;
 
     const uniqueRestoIds = [
       ...new Set(
         structuredItems
           .map((s) => findItemById(s.itemId).item?.restaurantId)
-          .filter(Boolean) as string[]
+          .filter(Boolean) as string[],
       ),
     ];
-
     if (uniqueRestoIds.length === 1) {
       const resto = restaurantDataMap[uniqueRestoIds[0]];
       summary += `Restaurant: ${resto?.name || "Unknown"}\n`;
@@ -650,7 +537,6 @@ export default function OrdersTab({
       const restaurantName =
         restaurantDataMap[menuItem?.restaurantId || ""]?.name ||
         "Unknown Restaurant";
-
       if (uniqueRestoIds.length > 1) {
         summary += `Restaurant: ${restaurantName}\n`;
         summary += "───────────────────────────────\n";
@@ -658,19 +544,33 @@ export default function OrdersTab({
 
       summary += `Item ${index + 1}: ${menuItem?.name || "Unknown Item"}\n`;
       summary += `Quantity: ${item.quantity}\n`;
-      summary += `Price per item: ₦${item.priceAtOrder.toLocaleString()}\n`;
 
-      if (item.extrasIds.length > 0) {
+      // Resolve size name + effective price for copy
+      const parsedExtras = item.extrasIds.map(parseExtraId);
+      let sizeName = "";
+      let effectiveCopyPrice = item.priceAtOrder;
+      parsedExtras.forEach((pe) => {
+        const extra = fetchedExtras[pe.extraId];
+        if (extra && isSizeOption(extra)) {
+          sizeName = extra.name;
+          effectiveCopyPrice = parsePrice(extra.price);
+        }
+      });
+
+      if (sizeName) summary += `Size: ${sizeName}\n`;
+      summary += `Price per item: ₦${effectiveCopyPrice.toLocaleString()}\n`;
+
+      const nonSizeExtras = parsedExtras.filter((pe) => {
+        const extra = fetchedExtras[pe.extraId];
+        return extra && !isSizeOption(extra);
+      });
+      if (nonSizeExtras.length > 0) {
         summary += "Extras:\n";
-        item.extrasIds.forEach((extraStr) => {
-          const parsed = parseExtraId(extraStr);
-          const extra = fetchedExtras[parsed.extraId];
+        nonSizeExtras.forEach((pe) => {
+          const extra = fetchedExtras[pe.extraId];
           if (extra) {
-            const price = Number(extra.price) || 0;
-            const total = price * parsed.quantity;
-            summary += `- ${extra.name} x${
-              parsed.quantity
-            } (₦${total.toLocaleString()})\n`;
+            const total = parsePrice(extra.price) * pe.quantity;
+            summary += `- ${extra.name} x${pe.quantity} (₦${total.toLocaleString()})\n`;
           }
         });
       }
@@ -678,21 +578,14 @@ export default function OrdersTab({
       if (item.specialInstructions?.trim()) {
         summary += `Special Instructions: ${item.specialInstructions.trim()}\n`;
       }
-
       summary += "───────────────────────────────\n\n";
     });
 
     if (selectedOrder.total) {
       summary += `Grand Total: ₦${selectedOrder.total.toLocaleString()}\n`;
     }
-
     handleCopy(summary.trim(), "Order Items Summary");
   };
-
-  const paginatedOrders = filteredOrders.slice(
-    (currentPage - 1) * ordersPerPage,
-    currentPage * ordersPerPage
-  );
 
   const getStatusColor = (status: string) => {
     const colors: { [key: string]: string } = {
@@ -717,6 +610,12 @@ export default function OrdersTab({
     );
   };
 
+  // ── FIX 2: paginatedOrders was missing from doc 5 ──
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ordersPerPage,
+    currentPage * ordersPerPage,
+  );
+
   const deliveryFee = selectedOrder?.deliveryFee || 0;
   const deliveryTime = selectedOrder?.deliveryTime;
   const deliveryAddress = selectedOrder?.address;
@@ -724,7 +623,7 @@ export default function OrdersTab({
 
   return (
     <>
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
@@ -750,7 +649,7 @@ export default function OrdersTab({
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={20}
             />
             <input
@@ -763,7 +662,7 @@ export default function OrdersTab({
           </div>
           <div className="relative sm:w-64">
             <Filter
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={20}
             />
             <select
@@ -781,24 +680,24 @@ export default function OrdersTab({
               ))}
             </select>
             <ChevronDown
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
               size={20}
             />
           </div>
         </div>
       </div>
 
-      {/* Orders Content */}
+      {/* Orders content */}
       {ordersLoading ? (
         <div className="space-y-4">
-          {[...Array(5)].map((_, index) => (
+          {[...Array(5)].map((_, i) => (
             <div
-              key={index}
+              key={i}
               className="animate-pulse bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6"
             >
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-3"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-3"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-3" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-3" />
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
             </div>
           ))}
         </div>
@@ -813,39 +712,34 @@ export default function OrdersTab({
         </div>
       ) : (
         <>
-          {/* Desktop Table View */}
+          {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg">
             <table className="min-w-full bg-white dark:bg-gray-800">
               <thead className="bg-gradient-to-r from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20">
                 <tr>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Order ID
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Branch
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Payment
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {[
+                    "Order ID",
+                    "Branch",
+                    "Customer",
+                    "Created",
+                    "Status",
+                    "Payment",
+                    "Actions",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="py-4 px-6 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {paginatedOrders.length > 0 ? (
                   paginatedOrders.map((order) => {
                     const branch = branches.find(
-                      (b) => b.id === order.selectedBranchId
+                      (b) => b.id === order.selectedBranchId,
                     );
                     const customerName =
                       customerNames[order.customerId] ||
@@ -891,12 +785,10 @@ export default function OrdersTab({
                               onChange={(e) =>
                                 handleStatusChange(
                                   order.$id,
-                                  e.target.value as OrderStatus
+                                  e.target.value as OrderStatus,
                                 )
                               }
-                              className={`rounded-lg px-3 py-2 text-xs font-semibold border-2 focus:ring-2 focus:ring-orange-400 transition-all cursor-pointer ${getStatusColor(
-                                order.status
-                              )}`}
+                              className={`rounded-lg px-3 py-2 text-xs font-semibold border-2 focus:ring-2 focus:ring-orange-400 transition-all cursor-pointer ${getStatusColor(order.status)}`}
                             >
                               {ORDER_STATUSES.map((status) => (
                                 <option key={status} value={status}>
@@ -967,12 +859,12 @@ export default function OrdersTab({
             </table>
           </div>
 
-          {/* Mobile Card View */}
+          {/* Mobile Cards */}
           <div className="lg:hidden space-y-4">
             {paginatedOrders.length > 0 ? (
               paginatedOrders.map((order) => {
                 const branch = branches.find(
-                  (b) => b.id === order.selectedBranchId
+                  (b) => b.id === order.selectedBranchId,
                 );
                 const customerName =
                   customerNames[order.customerId] ||
@@ -1024,7 +916,6 @@ export default function OrdersTab({
                         </button>
                       </div>
                     </div>
-
                     <div className="space-y-3 mb-4">
                       <div className="flex items-center gap-2 text-sm">
                         <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -1054,7 +945,6 @@ export default function OrdersTab({
                         </span>
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                         Order Status
@@ -1065,12 +955,10 @@ export default function OrdersTab({
                           onChange={(e) =>
                             handleStatusChange(
                               order.$id,
-                              e.target.value as OrderStatus
+                              e.target.value as OrderStatus,
                             )
                           }
-                          className={`w-full rounded-xl px-4 py-3 text-sm font-semibold border-2 focus:ring-2 focus:ring-orange-400 transition-all cursor-pointer ${getStatusColor(
-                            order.status
-                          )}`}
+                          className={`w-full rounded-xl px-4 py-3 text-sm font-semibold border-2 focus:ring-2 focus:ring-orange-400 transition-all cursor-pointer ${getStatusColor(order.status)}`}
                         >
                           {ORDER_STATUSES.map((status) => (
                             <option key={status} value={status}>
@@ -1126,8 +1014,8 @@ export default function OrdersTab({
                   setCurrentPage(
                     Math.min(
                       currentPage + 1,
-                      Math.ceil(filteredOrders.length / ordersPerPage)
-                    )
+                      Math.ceil(filteredOrders.length / ordersPerPage),
+                    ),
                   )
                 }
                 disabled={
@@ -1143,7 +1031,7 @@ export default function OrdersTab({
         </>
       )}
 
-      {/* Order Details Modal */}
+      {/* ── Order Details Modal ── */}
       <Dialog
         open={!!selectedOrder}
         onOpenChange={() => {
@@ -1171,7 +1059,7 @@ export default function OrdersTab({
           </DialogHeader>
 
           <div className="space-y-6 p-4 sm:p-6">
-            {/* Delivery Information (with copy button) */}
+            {/* Delivery Information */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 sm:p-5 rounded-2xl border-2 border-blue-200 dark:border-blue-800">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -1214,8 +1102,6 @@ export default function OrdersTab({
                     </button>
                   </div>
                 </div>
-
-                {/* New: Pickup Address Field */}
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">
                     Pickup Address
@@ -1234,7 +1120,7 @@ export default function OrdersTab({
                         <button
                           onClick={() =>
                             handleCopyClosestBranch(
-                              restaurantIdsForCurrentOrder[0]
+                              restaurantIdsForCurrentOrder[0],
                             )
                           }
                           className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
@@ -1250,7 +1136,6 @@ export default function OrdersTab({
                       )}
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">
                     Contact Number
@@ -1275,7 +1160,6 @@ export default function OrdersTab({
                     </button>
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-2">
                     Schedule Delivery
@@ -1287,8 +1171,8 @@ export default function OrdersTab({
                         deliveryTime === "Now"
                           ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                           : deliveryTime === "Tomorrow"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                          : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                       }`}
                     >
                       {deliveryTime || "ASAP"}
@@ -1298,7 +1182,7 @@ export default function OrdersTab({
               </div>
             </div>
 
-            {/* Restaurant Branches Section (moved right after Delivery Information) */}
+            {/* Pickup Branches */}
             <div className="space-y-4">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-orange-500" />
@@ -1317,9 +1201,7 @@ export default function OrdersTab({
                 </p>
               ) : (
                 Object.entries(restaurantDataMap).map(([restoId, resto]) => {
-                  const branches = branchDistances[restoId] || [];
-                  const closest = branches[0];
-
+                  const branchList = branchDistances[restoId] || [];
                   return (
                     <div
                       key={restoId}
@@ -1329,27 +1211,22 @@ export default function OrdersTab({
                         <h4 className="font-semibold text-gray-900 dark:text-white">
                           {resto.name}
                         </h4>
-                        {branches.length > 0 && (
+                        {branchList.length > 0 && (
                           <button
                             onClick={() => handleCopyClosestBranch(restoId)}
                             className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                            title="Copy closest branch address (no distance)"
+                            title="Copy closest branch address"
                           >
                             <Copy className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </button>
                         )}
                       </div>
-
-                      {branches.length > 0 ? (
+                      {branchList.length > 0 ? (
                         <div className="space-y-2">
-                          {branches.map((branch, i) => (
+                          {branchList.map((branch, i) => (
                             <div
                               key={i}
-                              className={`p-3 rounded-xl border-2 ${
-                                i === 0
-                                  ? "border-green-400 bg-green-50 dark:bg-green-900/20"
-                                  : "border-gray-200 dark:border-gray-700"
-                              }`}
+                              className={`p-3 rounded-xl border-2 ${i === 0 ? "border-green-400 bg-green-50 dark:bg-green-900/20" : "border-gray-200 dark:border-gray-700"}`}
                             >
                               <p className="text-sm text-gray-900 dark:text-gray-100">
                                 {branch.address}
@@ -1372,7 +1249,6 @@ export default function OrdersTab({
               )}
             </div>
 
-            {/* Restaurant Loading Indicator */}
             {restaurantsLoading && (
               <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
                 Loading restaurant information...
@@ -1381,13 +1257,11 @@ export default function OrdersTab({
 
             {/* Order Summary Card */}
             <div className="bg-gradient-to-br from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 p-4 sm:p-5 rounded-2xl border-2 border-orange-200 dark:border-orange-800">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
-                    Order Summary
-                  </h3>
-                </div>
+              <div className="flex items-center gap-2 mb-4">
+                <Receipt className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                  Order Summary
+                </h3>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-x-6 text-sm">
                 <div className="flex justify-between items-center">
@@ -1403,10 +1277,7 @@ export default function OrdersTab({
                     Total Qty:
                   </span>
                   <span className="font-bold text-gray-900 dark:text-white">
-                    {structuredItems.reduce(
-                      (sum, item) => sum + item.quantity,
-                      0
-                    )}
+                    {structuredItems.reduce((sum, i) => sum + i.quantity, 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -1423,7 +1294,7 @@ export default function OrdersTab({
                   </span>
                   <span className="font-bold text-gray-900 dark:text-white">
                     {selectedOrder?.paymentMethod === "cash"
-                      ? "pay on delivery"
+                      ? "Pay on delivery"
                       : selectedOrder?.paymentMethod || "N/A"}
                   </span>
                 </div>
@@ -1438,7 +1309,7 @@ export default function OrdersTab({
               </div>
             </div>
 
-            {/* Order Items Section */}
+            {/* Order Items — cup size support */}
             {fetchingExtras ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Package className="w-12 h-12 animate-spin text-orange-500 mb-4" />
@@ -1464,7 +1335,7 @@ export default function OrdersTab({
 
                 {structuredItems.map((structuredItem, itemIndex) => {
                   const { item, bucketId } = findItemById(
-                    structuredItem.itemId
+                    structuredItem.itemId,
                   );
 
                   if (!item) {
@@ -1491,23 +1362,45 @@ export default function OrdersTab({
                   }
 
                   const restaurant = restaurantDataMap[item.restaurantId || ""];
-
                   const restaurantName = restaurantsLoading
                     ? "Loading..."
                     : restaurant?.name || "Unknown Restaurant";
 
-                  const parsedExtras =
-                    structuredItem.extrasIds.map(parseExtraId);
+                  // Classify extras into size / packaging / optional
+                  let effectiveUnitPrice = structuredItem.priceAtOrder;
+                  let sizeName = "";
+                  const packagingExtras: any[] = [];
+                  const optionalExtras: any[] = [];
+
+                  structuredItem.extrasIds
+                    .map(parseExtraId)
+                    .forEach((parsed) => {
+                      const extra = fetchedExtras[parsed.extraId];
+                      if (!extra) return;
+                      if (isSizeOption(extra)) {
+                        effectiveUnitPrice = parsePrice(extra.price);
+                        sizeName = extra.name;
+                      } else if (packagingRegex.test(extra.name)) {
+                        packagingExtras.push({
+                          ...extra,
+                          quantity: parsed.quantity,
+                        });
+                      } else {
+                        optionalExtras.push({
+                          ...extra,
+                          quantity: parsed.quantity,
+                        });
+                      }
+                    });
+
                   const itemSubtotal =
-                    structuredItem.priceAtOrder * structuredItem.quantity;
-                  const extrasSubtotal = parsedExtras.reduce(
-                    (sum, parsedExtra) => {
-                      const extra = fetchedExtras[parsedExtra.extraId];
-                      return (
-                        sum + (extra ? +extra.price * parsedExtra.quantity : 0)
-                      );
-                    },
-                    0
+                    effectiveUnitPrice * structuredItem.quantity;
+                  const extrasSubtotal = [
+                    ...packagingExtras,
+                    ...optionalExtras,
+                  ].reduce(
+                    (sum, ex) => sum + parsePrice(ex.price) * ex.quantity,
+                    0,
                   );
                   const lineTotal = itemSubtotal + extrasSubtotal;
 
@@ -1516,7 +1409,7 @@ export default function OrdersTab({
                       key={itemIndex}
                       className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border-2 border-gray-200 dark:border-gray-700 overflow-hidden"
                     >
-                      {/* Item Header */}
+                      {/* Item header */}
                       <div className="p-4 sm:p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900">
                         <div className="flex items-start gap-3 sm:gap-4">
                           <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-xl overflow-hidden shadow-lg">
@@ -1534,104 +1427,94 @@ export default function OrdersTab({
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-gray-900 dark:text-white text-base sm:text-lg mb-1">
+                            <h4 className="font-bold text-gray-900 dark:text-white text-base sm:text-lg mb-0.5">
                               {item.name || item.title}
                             </h4>
-                            <p className="text-sm text-orange-600 dark:text-orange-400 font-medium mb-2">
+                            <p className="text-sm text-orange-600 dark:text-orange-400 font-medium mb-1">
                               {restaurantName}
                             </p>
+                            {sizeName && (
+                              <span className="inline-block mb-1.5 px-2.5 py-0.5 bg-orange-500 text-white text-xs font-semibold rounded-full">
+                                {sizeName}
+                              </span>
+                            )}
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
                               {item.description || "No description available"}
                             </p>
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-xs font-semibold">
                                 Qty: {structuredItem.quantity}
                               </span>
                               <span className="text-base font-bold text-orange-600 dark:text-orange-400">
-                                ₦{structuredItem.priceAtOrder.toLocaleString()}{" "}
-                                each
+                                ₦{effectiveUnitPrice.toLocaleString()} each
                               </span>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <span className="text-lg sm:text-xl font-black text-gray-900 dark:text-white block sm:inline-block">
+                            <span className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">
                               ₦{itemSubtotal.toLocaleString()}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Extras Section */}
-                      {structuredItem.extrasIds.length > 0 && (
+                      {/* Extras — packaging + optional only, size excluded */}
+                      {(packagingExtras.length > 0 ||
+                        optionalExtras.length > 0) && (
                         <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 border-t-2 border-gray-200 dark:border-gray-700">
                           <div className="flex items-center gap-2 mb-3">
                             <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             <h5 className="text-sm font-bold text-gray-900 dark:text-white">
-                              Extras ({structuredItem.extrasIds.length})
+                              Extras (
+                              {packagingExtras.length + optionalExtras.length})
                             </h5>
                           </div>
                           <div className="space-y-3">
-                            {structuredItem.extrasIds.map(
-                              (extraIdStr, extraIndex) => {
-                                const parsed = parseExtraId(extraIdStr);
-                                const extra = fetchedExtras[parsed.extraId] as
-                                  | IFetchedExtras
-                                  | IPackFetched;
-                                const extraQty = parsed.quantity;
-                                const extraTotal = extra
-                                  ? +extra.price * extraQty
-                                  : 0;
-                                return extra ? (
-                                  <div
-                                    key={extraIndex}
-                                    className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm"
-                                  >
-                                    <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-lg overflow-hidden">
-                                      {"image" in extra && extra.image ? (
-                                        <Image
-                                          src={fileUrl(
-                                            validateEnv().extrasBucketId,
-                                            extra.image
-                                          )}
-                                          alt={extra.name}
-                                          fill
-                                          className="object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-orange-100 to-pink-100 dark:from-orange-900/30 dark:to-pink-900/30 flex items-center justify-center">
-                                          <Package className="w-5 h-5 text-orange-500" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <h6 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                                        {extra.name}
-                                      </h6>
-                                    </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 block">
-                                        ₦{extra.price.toLocaleString()} ×{" "}
-                                        {extraQty}
-                                      </span>
-                                      <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
-                                        = ₦{extraTotal.toLocaleString()}
-                                      </span>
-                                    </div>
+                            {[...packagingExtras, ...optionalExtras].map(
+                              (ex, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-sm"
+                                >
+                                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 rounded-lg overflow-hidden">
+                                    {"image" in ex && ex.image ? (
+                                      <Image
+                                        src={fileUrl(
+                                          validateEnv().extrasBucketId,
+                                          ex.image,
+                                        )}
+                                        alt={ex.name}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-orange-100 to-pink-100 dark:from-orange-900/30 dark:to-pink-900/30 flex items-center justify-center">
+                                        <Package className="w-5 h-5 text-orange-500" />
+                                      </div>
+                                    )}
                                   </div>
-                                ) : (
-                                  <div
-                                    key={extraIndex}
-                                    className="p-3 bg-gray-100 dark:bg-gray-700/50 rounded-xl text-center border border-gray-300 dark:border-gray-600"
-                                  >
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      Extra not found (ID: {parsed.extraId})
-                                    </p>
+                                  <div className="flex-1 min-w-0">
+                                    <h6 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                      {ex.name}
+                                    </h6>
                                   </div>
-                                );
-                              }
+                                  <div className="text-right flex-shrink-0">
+                                    <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 block">
+                                      ₦{parsePrice(ex.price).toLocaleString()} ×{" "}
+                                      {ex.quantity}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                                      = ₦
+                                      {(
+                                        parsePrice(ex.price) * ex.quantity
+                                      ).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              ),
                             )}
                           </div>
-                          {structuredItem.extrasIds.length > 0 && (
+                          {extrasSubtotal > 0 && (
                             <div className="mt-4 pt-3 border-t-2 border-indigo-200 dark:border-indigo-800 flex justify-between items-center">
                               <span className="text-sm font-bold text-gray-900 dark:text-white">
                                 Extras Subtotal:
@@ -1644,23 +1527,22 @@ export default function OrdersTab({
                         </div>
                       )}
 
-                      {/* Special Instructions */}
-                      {structuredItem.specialInstructions &&
-                        structuredItem.specialInstructions.trim() !== "" && (
-                          <div className="p-4 sm:p-5 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-t-2 border-gray-200 dark:border-gray-700">
-                            <div className="flex items-center gap-2 mb-2">
-                              <MessageSquare className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                              <h6 className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
-                                Special Instructions
-                              </h6>
-                            </div>
-                            <p className="text-sm text-yellow-800 dark:text-yellow-300 whitespace-pre-wrap leading-relaxed">
-                              {structuredItem.specialInstructions}
-                            </p>
+                      {/* Special instructions */}
+                      {structuredItem.specialInstructions?.trim() && (
+                        <div className="p-4 sm:p-5 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-t-2 border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MessageSquare className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                            <h6 className="text-sm font-semibold text-yellow-800 dark:text-yellow-300">
+                              Special Instructions
+                            </h6>
                           </div>
-                        )}
+                          <p className="text-sm text-yellow-800 dark:text-yellow-300 whitespace-pre-wrap leading-relaxed">
+                            {structuredItem.specialInstructions}
+                          </p>
+                        </div>
+                      )}
 
-                      {/* Line Total */}
+                      {/* Line total */}
                       <div className="p-3 sm:p-4 bg-gradient-to-r from-orange-500 to-pink-500 flex justify-between items-center">
                         <span className="text-sm font-bold text-white">
                           Item Total:
@@ -1676,9 +1558,9 @@ export default function OrdersTab({
             )}
 
             {/* Grand Total Footer */}
-            <div className="mt-6 pt-4 border-t-2 border-gray-200 dark:border-gray-700 bg-gradient-to-br from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 p-4 rounded-2xl sticky bottom-0 z-10 sm:static sm:mt-0">
-              <div className="flex justify-between items-center text-lg font-bold">
-                <span className="text-gray-900 dark:text-white">
+            <div className="bg-gradient-to-br from-orange-50 to-pink-50 dark:from-orange-900/20 dark:to-pink-900/20 p-4 rounded-2xl border-t-2 border-orange-200 dark:border-orange-800">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">
                   Grand Total
                 </span>
                 <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
@@ -1688,7 +1570,7 @@ export default function OrdersTab({
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-6 sm:pt-0">
+          <DialogFooter className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-6">
             <DialogClose asChild>
               <Button className="w-full h-12 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all">
                 Close
@@ -1754,7 +1636,8 @@ export default function OrdersTab({
               Are you sure you want to cancel order #
               {selectedOrderToCancel?.riderCode?.toUpperCase() ||
                 selectedOrderToCancel?.orderId}
-              ? The order status will be changed to cancelled but will remain in the system.
+              ? The order status will be changed to cancelled but will remain in
+              the system.
             </p>
           </div>
           <DialogFooter className="p-6 pt-0 gap-3">

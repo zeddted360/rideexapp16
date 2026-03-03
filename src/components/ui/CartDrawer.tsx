@@ -27,10 +27,11 @@ import {
   ShoppingCart,
   AlertCircle,
   ShoppingBag,
-  ArrowRight,
   Package,
   CheckCircle,
   ChevronDown,
+  Bike,
+  UtensilsCrossed,
 } from "lucide-react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -63,7 +64,7 @@ import { useAuth } from "@/context/authContext";
 const CartDrawer = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { error, loading, orders } = useSelector(
-    (state: RootState) => state.orders
+    (state: RootState) => state.orders,
   );
   const { activeCart, setActiveCart } = useShowCart();
   const { user } = useAuth();
@@ -87,8 +88,11 @@ const CartDrawer = () => {
     /(rice|egg sauce|beans|porridge|pasta|spaghetti|macaroni|stew|pizza|jollof|fried rice|white rice|yam pottage|asaro)/i;
   const soupRegex =
     /(soup|egusi|ogbono|okra|efo|ewedu|gbegiri|banga|afang|pepper soup)/i;
-  // Broader regex to match AddToCartModal
   const packagingRegex = /(container|pack|takeout|takeaway|plastic|box|bag)/i;
+
+  const isSizeOption = (extra: IFetchedExtras | IPackFetched): boolean => {
+    return !!(extra as IFetchedExtras).isSizeOption === true;
+  };
 
   useEffect(() => {
     if (user?.userId && !orders && !loading) {
@@ -106,7 +110,6 @@ const CartDrawer = () => {
   useEffect(() => {
     const fetchExtrasAndPacks = async () => {
       if (!orders || orders.length === 0) return;
-
       const allExtraIds = new Set<string>();
       orders.forEach((order) => {
         if (order.selectedExtras && Array.isArray(order.selectedExtras)) {
@@ -114,89 +117,73 @@ const CartDrawer = () => {
             try {
               const extraObj = JSON.parse(extraStr as string);
               allExtraIds.add(extraObj.extraId);
-            } catch (e) {
-              console.error("Failed to parse extra:", extraStr, e);
-            }
+            } catch (e) {}
           });
         }
       });
-
       const extraIdsToFetch = Array.from(allExtraIds).filter(
-        (id) => !extrasCache[id]
+        (id) => !extrasCache[id],
       );
-
       if (extraIdsToFetch.length === 0) return;
-
       try {
         const { databaseId, extrasCollectionId, packsCollectionId } =
           validateEnv();
-
-        // Fetch from extras collection
         const extrasResponse = await databases.listDocuments(
           databaseId,
           extrasCollectionId,
-          [Query.equal("$id", extraIdsToFetch)]
+          [Query.equal("$id", extraIdsToFetch)],
         );
-        const fetchedExtras: IFetchedExtras[] =
-          extrasResponse.documents as unknown as IFetchedExtras[];
-
-        // Fetch from packs collection
         const packsResponse = await databases.listDocuments(
           databaseId,
           packsCollectionId,
-          [Query.equal("$id", extraIdsToFetch)]
+          [Query.equal("$id", extraIdsToFetch)],
         );
-        const fetchedPacks: IPackFetched[] =
-          packsResponse.documents as unknown as IPackFetched[];
-
-        // Combine them
         const newExtrasAndPacks: Record<string, IFetchedExtras | IPackFetched> =
           {};
-        [...fetchedExtras, ...fetchedPacks].forEach((doc) => {
+        [
+          ...(extrasResponse.documents as unknown as IFetchedExtras[]),
+          ...(packsResponse.documents as unknown as IPackFetched[]),
+        ].forEach((doc) => {
           newExtrasAndPacks[doc.$id] = doc;
         });
-
         setExtrasCache((prev) => ({ ...prev, ...newExtrasAndPacks }));
       } catch (error) {
         console.error("Failed to fetch extras and packs:", error);
       }
     };
-
     fetchExtrasAndPacks();
   }, [orders, extrasCache]);
 
   useEffect(() => {
     const fetchRestaurants = async () => {
       if (!orders || orders.length === 0) return;
-
       const uniqueRestaurantIds = [
         ...new Set(orders.map((o) => o.restaurantId)),
       ];
       const idsToFetch = uniqueRestaurantIds.filter((id) => !restaurants[id]);
-
       if (idsToFetch.length === 0) return;
-
       try {
         const { databaseId, restaurantsCollectionId } = validateEnv();
         const response = await databases.listDocuments(
           databaseId,
           restaurantsCollectionId,
-          [Query.equal("$id", idsToFetch)]
+          [Query.equal("$id", idsToFetch)],
         );
         const fetchedRestaurants = (
           response.documents as unknown as IRestaurantFetched[]
-        ).reduce((acc, doc) => {
-          acc[doc.$id] = doc;
-          return acc;
-        }, {} as Record<string, IRestaurantFetched>);
-
+        ).reduce(
+          (acc, doc) => {
+            acc[doc.$id] = doc;
+            return acc;
+          },
+          {} as Record<string, IRestaurantFetched>,
+        );
         setRestaurants((prev) => ({ ...prev, ...fetchedRestaurants }));
       } catch (error) {
         console.error("Failed to fetch restaurants:", error);
         toast.error("Failed to load restaurant details");
       }
     };
-
     fetchRestaurants();
   }, [orders, restaurants]);
 
@@ -220,49 +207,48 @@ const CartDrawer = () => {
 
   const calculateNewTotalPrice = useCallback(
     (order: ICartItemFetched, newQuantity: number): number => {
-      const parsePrice = (priceString: string | number): number => {
-        return typeof priceString === "string"
-          ? Number(priceString.replace(/[₦,]/g, ""))
-          : priceString;
-      };
+      const parsePrice = (p: string | number): number =>
+        typeof p === "string" ? Number(p.replace(/[₦,]/g, "")) : p;
 
-      const itemPrice = parsePrice(order.price);
-      const itemName = order.name || "";
-      const requiresPlastic =
-        spoonRegex.test(itemName) || soupRegex.test(itemName);
+      let unitPrice = parsePrice(order.price);
+      if (order.selectedExtras && Array.isArray(order.selectedExtras)) {
+        for (const extraStr of order.selectedExtras) {
+          try {
+            const extraObj: ISelectedExtra =
+              typeof extraStr === "string" ? JSON.parse(extraStr) : extraStr;
+            const extra = extrasCache[extraObj.extraId];
+            if (extra && isSizeOption(extra)) {
+              unitPrice = parsePrice(extra.price);
+              break;
+            }
+          } catch (e) {}
+        }
+      }
 
-      const newSubtotal = itemPrice * newQuantity;
-
+      const newSubtotal = unitPrice * newQuantity;
       let extrasTotal = 0;
 
       if (order.selectedExtras && Array.isArray(order.selectedExtras)) {
-        order.selectedExtras.forEach((extraStr: ISelectedExtra | string) => {
+        order.selectedExtras.forEach((extraStr) => {
           try {
-            const extraObj = JSON.parse(extraStr as string);
+            const extraObj: ISelectedExtra =
+              typeof extraStr === "string" ? JSON.parse(extraStr) : extraStr;
             const extra = extrasCache[extraObj.extraId];
-            if (extra) {
-              const isPackaging =
-                packagingRegex.test(extra.name) ||
-                (requiresPlastic &&
-                  extra.name.toLowerCase().includes("plastic container"));
-              const effectiveQty = isPackaging
-                ? newQuantity
-                : extraObj.quantity;
-              extrasTotal += parseFloat(extra.price as string) * effectiveQty;
-            }
-          } catch (e) {
-            console.error(
-              "Failed to parse extra for total calculation:",
-              extraStr,
-              e
-            );
-          }
+            if (!extra) return;
+            if (isSizeOption(extra)) return;
+            const isPackaging =
+              packagingRegex.test(extra.name) ||
+              (spoonRegex.test(order.name || "") &&
+                extra.name.toLowerCase().includes("plastic container"));
+            const effectiveQty = isPackaging ? newQuantity : extraObj.quantity;
+            extrasTotal += parsePrice(extra.price) * effectiveQty;
+          } catch (e) {}
         });
       }
 
-      return newSubtotal + extrasTotal;
+      return Math.round(newSubtotal + extrasTotal);
     },
-    [extrasCache, spoonRegex, soupRegex, packagingRegex]
+    [extrasCache, packagingRegex, spoonRegex],
   );
 
   const handleUpdateQuantity = useCallback(
@@ -274,28 +260,23 @@ const CartDrawer = () => {
       if (isDiscountItem && newQuantity > 0 && newQuantity < minOrderValue) {
         toast.error(
           `Quantity cannot be less than minimum order value of ${minOrderValue} for this discounted item`,
-          {
-            duration: 4000,
-            position: "top-right",
-          }
+          { duration: 4000, position: "top-right" },
         );
         return;
       }
 
-      // Optimistic update
       dispatch(updateQuantity({ orderId: order.$id, change }));
-
       const newTotalPrice = calculateNewTotalPrice(order, newQuantity);
 
-      // Update selectedExtras quantities for packaging items
       let updatedSelectedExtras: ISelectedExtra[] = [];
       if (order.selectedExtras && Array.isArray(order.selectedExtras)) {
         updatedSelectedExtras = order.selectedExtras
           .map((extraStr: ISelectedExtra | string) => {
             try {
-              return JSON.parse(extraStr as string);
+              return typeof extraStr === "string"
+                ? JSON.parse(extraStr)
+                : extraStr;
             } catch (e) {
-              console.error("Failed to parse extra:", extraStr, e);
               return null;
             }
           })
@@ -305,22 +286,21 @@ const CartDrawer = () => {
       if (newQuantity > 0) {
         updatedSelectedExtras = updatedSelectedExtras.map((extraObj) => {
           const extra = extrasCache[extraObj.extraId];
-          if (extra) {
-            const isPackaging =
-              packagingRegex.test(extra.name) ||
-              spoonRegex.test(order.name) ||
-              soupRegex.test(order.name);
-            return {
-              ...extraObj,
-              quantity: isPackaging ? newQuantity : extraObj.quantity,
-            };
-          }
-          return extraObj;
+          if (!extra) return extraObj;
+          if (isSizeOption(extra)) return { ...extraObj, quantity: 1 };
+          const isPackaging =
+            packagingRegex.test(extra.name) ||
+            (spoonRegex.test(order.name || "") &&
+              extra.name.toLowerCase().includes("plastic container"));
+          return {
+            ...extraObj,
+            quantity: isPackaging ? newQuantity : extraObj.quantity,
+          };
         });
       }
 
       const stringifiedSelectedExtras = updatedSelectedExtras.map((e) =>
-        JSON.stringify(e)
+        JSON.stringify(e),
       );
 
       if (newQuantity === 0) {
@@ -348,7 +328,7 @@ const CartDrawer = () => {
                 totalPrice: newTotalPrice,
                 selectedExtras: stringifiedSelectedExtras,
               },
-            })
+            }),
           ).unwrap();
         } catch (err) {
           toast.error("Failed to update quantity");
@@ -356,21 +336,13 @@ const CartDrawer = () => {
         }
       }
     }, 300),
-    [
-      dispatch,
-      calculateNewTotalPrice,
-      extrasCache,
-      spoonRegex,
-      soupRegex,
-      packagingRegex,
-    ]
+    [dispatch, calculateNewTotalPrice, extrasCache, packagingRegex, spoonRegex],
   );
 
   const handleDeleteOrder = useCallback(
     async (order: ICartItemFetched) => {
       setDeletingItems((prev) => new Set(prev).add(order.$id));
       dispatch(deleteOrder(order.$id));
-
       try {
         await dispatch(deleteOrderAsync(order.$id)).unwrap();
         toast.success("Item removed from cart");
@@ -385,7 +357,7 @@ const CartDrawer = () => {
         });
       }
     },
-    [dispatch]
+    [dispatch],
   );
 
   const handleClearSelection = useCallback(
@@ -396,12 +368,12 @@ const CartDrawer = () => {
       }
       toast.success("Selection cleared for restaurant");
     },
-    [groups, handleDeleteOrder]
+    [groups, handleDeleteOrder],
   );
 
   const subtotal = useMemo(
     () => orders?.reduce((sum, item) => sum + (item.totalPrice || 0), 0) || 0,
-    [orders]
+    [orders],
   );
 
   const hasActiveOrder =
@@ -420,7 +392,6 @@ const CartDrawer = () => {
           const extra = extrasCache[extraObj.extraId];
           return extra ? { ...extra, quantity: extraObj.quantity } : null;
         } catch (e) {
-          console.error("Failed to parse extra for display:", extraStr, e);
           return null;
         }
       })
@@ -431,12 +402,13 @@ const CartDrawer = () => {
     (itemExtras: (IFetchedExtras & { quantity: number })[]) => {
       return itemExtras.filter(
         (extra) =>
-          packagingRegex.test(extra.name) ||
-          ((spoonRegex.test(extra.name) || soupRegex.test(extra.name)) &&
-            extra.name.toLowerCase().includes("plastic container"))
+          !isSizeOption(extra) &&
+          (packagingRegex.test(extra.name) ||
+            ((spoonRegex.test(extra.name) || soupRegex.test(extra.name)) &&
+              extra.name.toLowerCase().includes("plastic container"))),
       );
     },
-    [packagingRegex, spoonRegex, soupRegex]
+    [packagingRegex, spoonRegex, soupRegex],
   );
 
   const getOptionalExtras = useCallback(
@@ -447,10 +419,10 @@ const CartDrawer = () => {
           !(
             (spoonRegex.test(extra.name) || soupRegex.test(extra.name)) &&
             extra.name.toLowerCase().includes("plastic container")
-          )
+          ),
       );
     },
-    [packagingRegex, spoonRegex, soupRegex]
+    [packagingRegex, spoonRegex, soupRegex],
   );
 
   const restrictedPaths = ["/checkout"];
@@ -459,9 +431,8 @@ const CartDrawer = () => {
     const group = groups[restaurantId] || [];
     const groupSubtotal = group.reduce(
       (sum, item) => sum + (item.totalPrice || 0),
-      0
+      0,
     );
-
     if (groupSubtotal < MIN_ORDER_AMOUNT) {
       setShowMinAmountDialog(true);
       return;
@@ -474,78 +445,84 @@ const CartDrawer = () => {
     setExpanded((prev) => ({ ...prev, [restaurantId]: !prev[restaurantId] }));
   };
 
+  const parsePrice = (p: string | number) =>
+    typeof p === "string" ? Number(p.replace(/[₦,]/g, "")) : p;
+
   return (
     <>
+      {/* Floating cart button */}
       {hasActiveOrder &&
         !restrictedPaths.some((path) => pathname.includes(path)) && (
           <button
             onClick={() => setActiveCart(true)}
-            className={`fixed bottom-6 right-6 z-50 group hidden md:block`}
+            className="fixed bottom-6 right-6 z-50 group hidden md:flex items-center gap-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-5 py-3.5 shadow-xl shadow-orange-200 dark:shadow-orange-900/40 transition-all hover:scale-105 active:scale-95"
             aria-label="View cart"
           >
-            <div className="relative bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-full p-4 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110">
-              <ShoppingCart className="w-6 h-6" />
-              {itemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white animate-pulse">
-                  {itemCount}
-                </span>
-              )}
-            </div>
-            <span className="absolute bottom-full right-0 mb-2 bg-gray-900 text-white text-xs px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              View Cart ({itemCount})
-            </span>
+            <ShoppingCart className="w-5 h-5" />
+            <span className="text-sm font-bold">Cart</span>
+            {itemCount > 0 && (
+              <span className="w-5 h-5 bg-white text-orange-600 text-xs font-bold rounded-full flex items-center justify-center">
+                {itemCount}
+              </span>
+            )}
           </button>
         )}
 
       <Drawer open={activeCart} onOpenChange={setActiveCart}>
-        <DrawerContent className="bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 rounded-t-3xl max-w-md w-full mx-auto h-[95vh] flex flex-col border-t-4 border-orange-500">
-          <DrawerHeader className="relative border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm p-4 sm:p-6">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="bg-gradient-to-r from-orange-500 to-pink-500 p-2 rounded-xl">
+        <DrawerContent className="bg-white dark:bg-[#141414] rounded-t-3xl max-w-md w-full mx-auto h-[95vh] flex flex-col border-0 outline-none [&::-webkit-scrollbar]:hidden">
+          {/* ── Header ── */}
+          <DrawerHeader className="relative px-5 pt-5 pb-4 border-b border-gray-100 dark:border-white/[0.07] shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-md shadow-orange-200 dark:shadow-orange-900/30">
                 <ShoppingBag className="w-5 h-5 text-white" />
               </div>
-              <DrawerTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
-                My Cart
-              </DrawerTitle>
+              <div>
+                <DrawerTitle className="text-xl font-bold text-gray-900 dark:text-white">
+                  My Cart
+                </DrawerTitle>
+                <DrawerDescription className="text-xs text-gray-400 dark:text-gray-500">
+                  {itemCount} {itemCount === 1 ? "item" : "items"} · ₦
+                  {subtotal.toLocaleString()}
+                </DrawerDescription>
+              </div>
             </div>
-            <DrawerDescription className="text-sm text-gray-600 dark:text-gray-400">
-              {itemCount} {itemCount === 1 ? "item" : "items"} ready for
-              checkout
-            </DrawerDescription>
             <DrawerClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-4 right-4 w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                aria-label="Close cart"
-              >
-                <X className="w-5 h-5" />
-              </Button>
+              <button className="absolute top-5 right-5 w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 transition-colors">
+                <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </button>
             </DrawerClose>
           </DrawerHeader>
 
-          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-b border-gray-200 dark:border-gray-700">
-            <div className="inline-flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium shadow-sm">
-              <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
-              Delivery Available
+          {/* ── Delivery banner ── */}
+          <div className="px-5 py-3 shrink-0">
+            <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/25 rounded-2xl px-4 py-2.5">
+              <Bike className="w-4 h-4 text-orange-500 shrink-0" />
+              <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">
+                Delivery available for your location
+              </p>
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {/* ── Scrollable items ── */}
+          <div
+            className="flex-1 overflow-y-auto px-5 pb-4 space-y-4"
+            style={{ scrollbarWidth: "none" }}
+          >
             {loading && !orders?.length ? (
-              <div className="flex flex-col items-center justify-center h-full">
-                <Loader2 className="animate-spin h-10 w-10 text-orange-500 mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 font-medium">
-                  Loading your cart...
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <Loader2 className="animate-spin h-9 w-9 text-orange-500" />
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                  Loading your cart…
                 </p>
               </div>
             ) : error ? (
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="bg-red-100 dark:bg-red-900/20 p-4 rounded-full mb-4">
-                  <AlertCircle className="w-10 h-10 text-red-500" />
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <div className="w-14 h-14 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                  <AlertCircle className="w-7 h-7 text-red-500" />
                 </div>
                 <p
-                  className="text-red-500 text-center font-medium"
+                  className="text-sm text-red-500 text-center font-medium"
                   role="alert"
                 >
                   {error}
@@ -558,60 +535,60 @@ const CartDrawer = () => {
                 const groupItemCount = group.length;
                 const groupSubtotal = group.reduce(
                   (sum, item) => sum + (item.totalPrice || 0),
-                  0
+                  0,
                 );
-                const isExpanded = expanded[restaurantId] ?? true; // Default to expanded for better fit
+                const isExpanded = expanded[restaurantId] ?? true;
 
                 return (
                   <div
                     key={restaurantId}
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden"
+                    className="rounded-2xl overflow-hidden border border-gray-100 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.03]"
                   >
-                    <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {restaurant?.logo && (
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 relative">
-                            <Image
-                              src={fileUrl(
-                                validateEnv().restaurantBucketId,
-                                restaurant.logo as string
-                              )}
-                              alt={restaurant.name}
-                              className="w-full h-full object-cover rounded-full"
-                              width={40}
-                              height={40}
-                              quality={90}
-                              loading="lazy"
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base">
-                            {restaurant?.name || "Unknown Restaurant"}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {groupItemCount}{" "}
-                            {groupItemCount === 1 ? "item" : "items"} • ₦
-                            {groupSubtotal.toLocaleString()}
-                          </p>
+                    {/* Restaurant header */}
+                    <button
+                      onClick={() => toggleExpand(restaurantId)}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-white dark:bg-white/[0.04] border-b border-gray-100 dark:border-white/[0.06] hover:bg-gray-50 dark:hover:bg-white/[0.06] transition-colors"
+                    >
+                      {restaurant?.logo ? (
+                        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
+                          <Image
+                            src={fileUrl(
+                              validateEnv().restaurantBucketId,
+                              restaurant.logo as string,
+                            )}
+                            alt={restaurant.name}
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-cover"
+                            quality={90}
+                          />
                         </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center shrink-0">
+                          <UtensilsCrossed className="w-4 h-4 text-orange-500" />
+                        </div>
+                      )}
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+                          {restaurant?.name || "Unknown Restaurant"}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {groupItemCount}{" "}
+                          {groupItemCount === 1 ? "item" : "items"} · ₦
+                          {groupSubtotal.toLocaleString()}
+                        </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        onClick={() => toggleExpand(restaurantId)}
-                        className="flex items-center gap-1 text-sm"
-                      >
-                        <ChevronDown
-                          className={cn(
-                            "w-4 h-4 transition-transform",
-                            isExpanded && "rotate-180"
-                          )}
-                        />
-                      </Button>
-                    </div>
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-gray-400 transition-transform shrink-0",
+                          isExpanded && "rotate-180",
+                        )}
+                      />
+                    </button>
 
+                    {/* Order items */}
                     {isExpanded && (
-                      <div className="p-3 sm:p-4 space-y-3">
+                      <div className="p-3 space-y-2.5">
                         {group.map((order) => {
                           const isDeleting = deletingItems.has(order.$id);
                           const itemExtras = getItemExtras(order);
@@ -621,138 +598,164 @@ const CartDrawer = () => {
                           const isDiscountItem = order.source === "discount";
                           const minOrderValue = order.minOrderValue || 0;
 
+                          // Find size label for display
+                          const sizeExtra = itemExtras.find((e) =>
+                            isSizeOption(e),
+                          );
+
                           return (
                             <div
                               key={order.$id}
                               className={cn(
-                                "rounded-xl p-3 border border-gray-200 dark:border-gray-700",
-                                isDeleting && "opacity-50 scale-95"
+                                "bg-white dark:bg-white/[0.05] rounded-xl p-3 border-2 border-transparent transition-all",
+                                isDeleting
+                                  ? "opacity-40 scale-[0.98]"
+                                  : "border-gray-100 dark:border-white/[0.06]",
                               )}
                             >
                               <div className="flex items-start gap-3">
-                                <div className="relative w-16 h-16 bg-gradient-to-br from-orange-100 to-pink-100 dark:from-orange-900/30 dark:to-pink-900/30 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm">
+                                {/* Item image */}
+                                <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-orange-50 dark:bg-orange-900/20">
                                   <Image
                                     src={fileUrl(
                                       order.source === "featured"
                                         ? validateEnv().featuredBucketId
                                         : order.source === "popular"
-                                        ? validateEnv().popularBucketId
-                                        : order.source === "discount"
-                                        ? validateEnv().discountBucketId
-                                        : order.source === "offer"
-                                        ? validateEnv().promoOfferBucketId
-                                        : validateEnv().menuBucketId,
-                                      order.image
+                                          ? validateEnv().popularBucketId
+                                          : order.source === "discount"
+                                            ? validateEnv().discountBucketId
+                                            : order.source === "offer"
+                                              ? validateEnv().promoOfferBucketId
+                                              : validateEnv().menuBucketId,
+                                      order.image,
                                     )}
                                     alt={order.name || "Item"}
-                                    className="w-full h-full object-cover"
-                                    width={64}
-                                    height={64}
-                                    quality={90}
-                                    loading="lazy"
+                                    fill
+                                    className="object-cover"
+                                    sizes="56px"
+                                    quality={85}
                                   />
                                 </div>
 
+                                {/* Item info */}
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1 text-sm truncate">
-                                    {order.name || "Unknown Item"}
-                                  </h4>
-                                  <div className="space-y-0.5 text-xs">
-                                    <p className="text-gray-600 dark:text-gray-400">
-                                      <span className="font-medium">
-                                        Unit Price:
-                                      </span>{" "}
-                                      ₦
-                                      {(typeof order.price === "string"
-                                        ? Number(
-                                            order.price.replace(/[₦,]/g, "")
-                                          )
-                                        : order.price
-                                      ).toLocaleString()}
-                                    </p>
-
-                                    {packagingExtras.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {packagingExtras.map((extra) => (
-                                          <span
-                                            key={extra.$id}
-                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xxs font-medium border border-green-200 dark:border-green-800"
-                                          >
-                                            <CheckCircle className="w-2 h-2" />
-                                            {extra.name} x{extra.quantity}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-
-                                    {optionalExtras.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {optionalExtras.map((extra) => (
-                                          <span
-                                            key={extra.$id}
-                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-xxs font-medium"
-                                          >
-                                            <Plus className="w-2 h-2" />
-                                            {extra.name} x{extra.quantity}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-
-                                    <p className="font-bold text-orange-600 dark:text-orange-400">
-                                      ₦{order.totalPrice.toLocaleString()}
-                                    </p>
+                                  <div className="flex items-start justify-between gap-2 mb-1">
+                                    <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate leading-tight">
+                                      {order.name || "Unknown Item"}
+                                    </h4>
                                   </div>
+
+                                  {/* Size badge */}
+                                  {sizeExtra && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400 mb-1.5">
+                                      {sizeExtra.name}
+                                    </span>
+                                  )}
+
+                                  {/* Unit price */}
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-1.5">
+                                    ₦
+                                    {(sizeExtra
+                                      ? parsePrice(sizeExtra.price)
+                                      : parsePrice(order.price)
+                                    ).toLocaleString()}{" "}
+                                    / unit
+                                  </p>
+
+                                  {/* Packaging extras */}
+                                  {packagingExtras.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-1">
+                                      {packagingExtras.map((extra) => (
+                                        <span
+                                          key={extra.$id}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs font-medium border border-green-200 dark:border-green-800/50"
+                                        >
+                                          <CheckCircle className="w-2.5 h-2.5" />
+                                          {extra.name} ×{extra.quantity}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Optional extras (non-size) */}
+                                  {optionalExtras.filter(
+                                    (e) => !isSizeOption(e),
+                                  ).length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mb-1">
+                                      {optionalExtras
+                                        .filter((e) => !isSizeOption(e))
+                                        .map((extra) => (
+                                          <span
+                                            key={extra.$id}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-full text-xs font-medium"
+                                          >
+                                            <Plus className="w-2.5 h-2.5" />
+                                            {extra.name} ×{extra.quantity}
+                                          </span>
+                                        ))}
+                                    </div>
+                                  )}
+
+                                  {/* Special instructions */}
                                   {order.specialInstructions && (
-                                    <p className="text-xxs text-gray-500 dark:text-gray-400 mt-1 italic line-clamp-1">
+                                    <p className="text-xs text-gray-400 italic mt-1 line-clamp-1">
                                       "{order.specialInstructions}"
                                     </p>
                                   )}
+
+                                  {/* Discount min warning */}
                                   {isDiscountItem &&
                                     order.quantity < minOrderValue && (
-                                      <div className="mt-1 p-1 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-md text-xxs text-orange-800 dark:text-orange-300 flex items-center gap-1">
-                                        <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                                        Min quantity: {minOrderValue}
+                                      <div className="mt-1.5 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border border-orange-200 dark:border-orange-800/50">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        Min qty: {minOrderValue}
                                       </div>
                                     )}
                                 </div>
 
-                                <div className="flex flex-col gap-1 items-end">
-                                  <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-full p-0.5">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
+                                {/* Controls */}
+                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                  <p className="font-bold text-sm text-orange-500 tabular-nums">
+                                    ₦{order.totalPrice.toLocaleString()}
+                                  </p>
+
+                                  {/* Qty stepper */}
+                                  <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-xl px-1.5 py-1">
+                                    <button
                                       onClick={() =>
                                         handleUpdateQuantity(order, -1)
                                       }
-                                      className="w-6 h-6 rounded-full hover:bg-white dark:hover:bg-gray-600"
                                       disabled={loading || isDeleting}
+                                      className={cn(
+                                        "w-6 h-6 rounded-lg flex items-center justify-center transition-all",
+                                        order.quantity <= 1
+                                          ? "bg-gray-200 dark:bg-white/10 text-gray-400"
+                                          : "bg-orange-100 dark:bg-orange-500/20 text-orange-600",
+                                      )}
                                       aria-label={`Decrease quantity of ${order.name}`}
                                     >
                                       <Minus className="w-3 h-3" />
-                                    </Button>
-                                    <span className="w-6 text-center font-bold text-gray-900 dark:text-gray-100 text-xs">
+                                    </button>
+                                    <span className="w-5 text-center font-bold text-xs text-gray-900 dark:text-white tabular-nums">
                                       {order.quantity}
                                     </span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
+                                    <button
                                       onClick={() =>
                                         handleUpdateQuantity(order, 1)
                                       }
-                                      className="w-6 h-6 rounded-full hover:bg-white dark:hover:bg-gray-600"
                                       disabled={loading || isDeleting}
+                                      className="w-6 h-6 rounded-lg flex items-center justify-center bg-orange-500 hover:bg-orange-600 text-white transition-all"
                                       aria-label={`Increase quantity of ${order.name}`}
                                     >
                                       <Plus className="w-3 h-3" />
-                                    </Button>
+                                    </button>
                                   </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
+
+                                  {/* Delete */}
+                                  <button
                                     onClick={() => handleDeleteOrder(order)}
-                                    className="w-6 h-6 bg-red-50 dark:bg-red-900/20 rounded-full text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800"
                                     disabled={loading || isDeleting}
+                                    className="w-6 h-6 rounded-lg flex items-center justify-center bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800/50 transition-all"
                                     aria-label={`Delete ${order.name} from cart`}
                                   >
                                     {isDeleting ? (
@@ -760,7 +763,7 @@ const CartDrawer = () => {
                                     ) : (
                                       <Trash2 className="w-3 h-3" />
                                     )}
-                                  </Button>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -769,24 +772,25 @@ const CartDrawer = () => {
                       </div>
                     )}
 
-                    <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex gap-3">
+                    {/* Per-restaurant checkout */}
+                    <div className="px-3 pb-3">
+                      <div className="flex gap-2">
                         <Button
                           onClick={() => handleCheckout(restaurantId)}
-                          className="flex-1 h-10 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-medium rounded-xl text-sm"
                           disabled={
                             loading || groupItemCount === 0 || isCheckingOut
                           }
+                          className="flex-1 h-10 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl text-sm shadow-sm shadow-orange-200 dark:shadow-orange-900/20 transition-all"
                         >
-                          Checkout
+                          Checkout · ₦{groupSubtotal.toLocaleString()}
                         </Button>
                         <Button
                           variant="outline"
                           onClick={() => handleClearSelection(restaurantId)}
-                          className="flex-1 h-10 rounded-xl text-sm"
                           disabled={loading || groupItemCount === 0}
+                          className="h-10 px-3 rounded-xl text-sm border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-all"
                         >
-                          Clear Selection
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -796,13 +800,20 @@ const CartDrawer = () => {
             ) : null}
           </div>
 
-          <DrawerFooter className="p-4 sm:p-6 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 space-y-4">
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-2xl p-3 sm:p-4">
-              <div className="flex justify-between items-center pt-3 border-t border-gray-300 dark:border-gray-500">
-                <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {/* ── Footer: Grand Total ── */}
+          <DrawerFooter className="px-5 pt-0 pb-5 shrink-0">
+            <div className="rounded-2xl overflow-hidden border border-orange-200 dark:border-orange-500/20">
+              <div className="bg-orange-50 dark:bg-orange-500/5 px-4 py-2.5 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+                <span>
+                  {itemCount} {itemCount === 1 ? "item" : "items"} in cart
+                </span>
+                <span className="tabular-nums">subtotal</span>
+              </div>
+              <div className="bg-orange-500 px-4 py-3.5 flex justify-between items-center">
+                <span className="text-white/90 font-semibold text-sm">
                   Grand Total
                 </span>
-                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-600 to-pink-600 bg-clip-text text-transparent">
+                <span className="text-white font-bold text-xl tabular-nums">
                   ₦{subtotal.toLocaleString()}
                 </span>
               </div>
@@ -811,28 +822,31 @@ const CartDrawer = () => {
         </DrawerContent>
       </Drawer>
 
+      {/* ── Empty cart dialog ── */}
       <Dialog open={showEmptyCartDialog} onOpenChange={setShowEmptyCartDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-orange-100 to-pink-100 dark:from-orange-900/30 dark:to-pink-900/30 rounded-full flex items-center justify-center">
+        <DialogContent className="sm:max-w-sm rounded-3xl border-0 bg-white dark:bg-[#141414] p-0 overflow-hidden">
+          <div className="px-6 pt-8 pb-6 text-center">
+            <div className="mx-auto mb-4 w-16 h-16 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center">
               <Package className="w-8 h-8 text-orange-500" />
             </div>
-            <DialogTitle className="text-2xl font-bold">
-              Your Cart is Empty
-            </DialogTitle>
-            <DialogDescription className="text-base pt-2">
-              Looks like you haven't added anything yet. Start exploring our
-              delicious menu!
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-center gap-3 pt-4">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Your Cart is Empty
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 dark:text-gray-400">
+                You haven't added anything yet. Explore our menu and find
+                something delicious!
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-6 pb-6 flex gap-3">
             <Button
               variant="outline"
               onClick={() => {
                 setShowEmptyCartDialog(false);
                 setActiveCart(false);
               }}
-              className="h-12 px-6 rounded-xl"
+              className="flex-1 h-11 rounded-2xl border-gray-200 dark:border-white/10"
             >
               Close
             </Button>
@@ -842,41 +856,41 @@ const CartDrawer = () => {
                 setActiveCart(false);
                 router.push("/menu");
               }}
-              className="h-12 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white"
+              className="flex-1 h-11 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-sm shadow-orange-200 dark:shadow-orange-900/20"
             >
               <ShoppingBag className="w-4 h-4 mr-2" />
               Browse Menu
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
+      {/* ── Min amount dialog ── */}
       <Dialog open={showMinAmountDialog} onOpenChange={setShowMinAmountDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-orange-100 to-pink-100 dark:from-orange-900/30 dark:to-pink-900/30 rounded-full flex items-center justify-center">
+        <DialogContent className="sm:max-w-sm rounded-3xl border-0 bg-white dark:bg-[#141414] p-0 overflow-hidden">
+          <div className="px-6 pt-8 pb-6 text-center">
+            <div className="mx-auto mb-4 w-16 h-16 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center">
               <AlertCircle className="w-8 h-8 text-orange-500" />
             </div>
-            <DialogTitle className="text-2xl font-bold">
-              Minimum Order Amount Required
-            </DialogTitle>
-            <DialogDescription className="text-base pt-2">
-              Your current order total is below the minimum of ₦
-              {MIN_ORDER_AMOUNT.toLocaleString()}. Please add more items to
-              proceed.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-center gap-3 pt-4">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Minimum Order Required
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 dark:text-gray-400">
+                Your order is below the minimum of ₦
+                {MIN_ORDER_AMOUNT.toLocaleString()}. Add a few more items to
+                proceed.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-6 pb-6">
             <Button
-              variant="outline"
-              onClick={() => {
-                setShowMinAmountDialog(false);
-              }}
-              className="h-12 px-6 rounded-xl"
+              onClick={() => setShowMinAmountDialog(false)}
+              className="w-full h-11 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-sm shadow-orange-200 dark:shadow-orange-900/20"
             >
               Continue Shopping
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>
