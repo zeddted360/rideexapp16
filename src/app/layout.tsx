@@ -4,6 +4,7 @@ import { Wrapper } from "../Providers/Wrapper";
 import "./globals.css";
 import { Metadata } from "next";
 import { Roboto } from "next/font/google";
+import Offline from "@/components/Offline";
 
 const roboto = Roboto({
   subsets: ["latin"],
@@ -35,7 +36,8 @@ export default function RootLayout({
       </head>
       <body className={`${roboto.className} min-h-screen flex flex-col`}>
         <Wrapper>
-          <GlobalDataLoader /> {/* ← loads everything on app start */}
+          <GlobalDataLoader />
+          <Offline />
           {children}
           <ChatWidget />
         </Wrapper>
