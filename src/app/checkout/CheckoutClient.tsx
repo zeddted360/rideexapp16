@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState, AppDispatch } from "@/state/store";
 import { createNotification } from "@/state/notificationSlice";
@@ -58,12 +58,17 @@ import {
   Loader2,
   ShoppingBag,
   CheckCircle,
+  Clock,
+  X,
+  CheckCircle2,
+  ChevronRight,
+  Store,
 } from "lucide-react";
 import Image from "next/image";
 import { fileUrl } from "@/utils/appwrite";
 
 export default function CheckoutClient() {
-  const SERVICE_CHARGE = 200; // Fixed platform fee
+  const SERVICE_CHARGE = 200;
   const [selectedBranch, setSelectedBranch] = useState(1);
   const [deliveryDay, setDeliveryDay] = useState<"today" | "tomorrow">("today");
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("");
@@ -133,20 +138,10 @@ export default function CheckoutClient() {
     [filteredOrders],
   );
 
-  
   const estDeliveryDisplay = useMemo(() => {
-    if (isCalculatingFee) {
-      return (
-        <span className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
-          Calculating...
-        </span>
-      );
-    }
-    if (!deliveryDuration || !address.trim()) {
-      return "Enter address to see estimate";
-    }
-    return deliveryDuration; 
+    if (isCalculatingFee) return null; // handled inline
+    if (!deliveryDuration || !address.trim()) return null;
+    return deliveryDuration;
   }, [isCalculatingFee, deliveryDuration, address]);
 
   const timeSlots = useMemo(
@@ -154,10 +149,7 @@ export default function CheckoutClient() {
     [deliveryDay],
   );
   const { googleMapsApiKey } = validateEnv();
-
   const effectiveDeliveryFee = paymentMethod === "cash" ? 0 : deliveryFee;
-
- 
   const totalAmount = subtotal + effectiveDeliveryFee + SERVICE_CHARGE;
 
   const {
@@ -166,22 +158,16 @@ export default function CheckoutClient() {
     message: mapPauseMessage,
   } = useGlobalMapControl();
 
-  // Memoized branch data
   const selectedBranchData = useMemo(
     () => branches.find((b) => b.id === selectedBranch),
     [selectedBranch],
   );
 
-  // Debounce address using standard useEffect
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedAddress(address);
-    }, 500);
-
+    const timer = setTimeout(() => setDebouncedAddress(address), 500);
     return () => clearTimeout(timer);
   }, [address]);
 
-  // Centralized error handling with auto-clear
   const handleError = useCallback((message: string, isConfirmError = false) => {
     if (isConfirmError) {
       setConfirmError(message);
@@ -192,57 +178,40 @@ export default function CheckoutClient() {
     }
   }, []);
 
-  // Fetch user location
   useEffect(() => {
     if (window.google?.maps) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          const accuracy = pos.coords.accuracy;
-          if (accuracy > 1000) setOffLocationModal(true);
+          if (pos.coords.accuracy > 1000) setOffLocationModal(true);
           setUserLocation(loc);
         },
-        (err) => {
-          console.error("Geolocation error:", err);
-        },
+        (err) => console.error("Geolocation error:", err),
         { enableHighAccuracy: true, maximumAge: 0 },
       );
     }
   }, []);
 
-  // Google Maps initialization
   const initMap = useCallback(() => {
     if (!dialogAutocompleteInput.current || !window.google?.maps) return;
-
     dialogAutocompleteRef.current = new window.google.maps.places.Autocomplete(
       dialogAutocompleteInput.current,
-      {
-        types: ["geocode"],
-        componentRestrictions: { country: "ng" },
-      },
+      { types: ["geocode"], componentRestrictions: { country: "ng" } },
     );
-
     autocompleteListenerRef.current = dialogAutocompleteRef.current.addListener(
       "place_changed",
       () => {
         const place = dialogAutocompleteRef.current?.getPlace();
         if (!place?.geometry?.location) return;
-        if (place.formatted_address) {
-          setTempAddress(place.formatted_address);
-          setGooglePlaceSelected(true);
-          setSelectedPlace(place);
-          setLastPickedAddress(place.formatted_address);
-        } else if (place.name) {
-          setTempAddress(place.name);
-          setGooglePlaceSelected(true);
-          setSelectedPlace(place);
-          setLastPickedAddress(place.name);
-        }
+        const addr = place.formatted_address || place.name || "";
+        setTempAddress(addr);
+        setGooglePlaceSelected(true);
+        setSelectedPlace(place);
+        setLastPickedAddress(addr);
       },
     );
   }, []);
 
-  // Load Google Maps
   useEffect(() => {
     if (!googleMapsApiKey) {
       handleError(
@@ -251,13 +220,11 @@ export default function CheckoutClient() {
       setManualMode(true);
       return;
     }
-
     const loader = new Loader({
       apiKey: googleMapsApiKey,
       version: "weekly",
       libraries: ["places", "geometry", "marker"],
     });
-
     loader
       .load()
       .then(() => {
@@ -270,7 +237,6 @@ export default function CheckoutClient() {
         );
         setManualMode(true);
       });
-
     return () => {
       if (autocompleteListenerRef.current) {
         autocompleteListenerRef.current.remove();
@@ -280,7 +246,6 @@ export default function CheckoutClient() {
     };
   }, [googleMapsApiKey, initMap, handleError]);
 
-  // Fetch restaurant details
   useEffect(() => {
     const fetchRestaurant = async () => {
       if (!restaurantId) return;
@@ -300,58 +265,45 @@ export default function CheckoutClient() {
     fetchRestaurant();
   }, [restaurantId]);
 
-  // Calculate delivery fee + show service charge
   useEffect(() => {
     const calculateFee = async () => {
       if (mapLoading) {
         setIsCalculatingFee(true);
         return;
       }
-
       if (isMapPaused) {
-        setDeliveryFee(1500); // fallback average – adjust to your business data
+        setDeliveryFee(1500);
         setDeliveryDistance("≈ 8–15 km (estimated)");
         setDeliveryDuration("30–60 min (estimated)");
         setIsCalculatingFee(false);
         return;
       }
-
       if (!debouncedAddress.trim() || !selectedBranchData) {
         setDeliveryFee(800);
         setDeliveryDistance("");
         setDeliveryDuration("");
         return;
       }
-
       setIsCalculatingFee(true);
       try {
         const origin = encodeURIComponent(
           selectedBranchData.address + ", Nigeria",
         );
         const destination = encodeURIComponent(debouncedAddress + ", Nigeria");
-
         const res = await fetch(
           `/api/distance-matrix?origins=${origin}&destinations=${destination}`,
         );
         const data = await res.json();
-
-        if (data.status !== "OK" || !data.rows[0]?.elements[0]?.distance) {
+        if (data.status !== "OK" || !data.rows[0]?.elements[0]?.distance)
           throw new Error("Invalid distance");
-        }
-
         const distanceMeters = data.rows[0].elements[0].distance.value;
         const distanceText = data.rows[0].elements[0].distance.text;
         const durationText = data.rows[0].elements[0].duration.text;
-
         const feeResult = calculateDeliveryFeeSimple(distanceMeters, true);
-
         if (!feeResult.isDeliverable) {
           setShowDistanceExceededModal(true);
           setDeliveryFee(0);
-        } else {
-          setDeliveryFee(feeResult.deliveryFee);
-        }
-
+        } else setDeliveryFee(feeResult.deliveryFee);
         setDeliveryDistance(distanceText);
         setDeliveryDuration(durationText);
       } catch (error) {
@@ -362,7 +314,6 @@ export default function CheckoutClient() {
         setIsCalculatingFee(false);
       }
     };
-
     calculateFee();
   }, [
     debouncedAddress,
@@ -372,11 +323,9 @@ export default function CheckoutClient() {
     mapLoading,
   ]);
 
-  // Handle payment method change for cash modal
   useEffect(() => {
-    if (paymentMethod === "cash" && prevPaymentMethodRef.current !== "cash") {
+    if (paymentMethod === "cash" && prevPaymentMethodRef.current !== "cash")
       setShowCashModal(true);
-    }
     prevPaymentMethodRef.current = paymentMethod;
   }, [paymentMethod]);
 
@@ -384,12 +333,9 @@ export default function CheckoutClient() {
   const userId = user?.userId;
 
   useEffect(() => {
-    if (user?.phoneNumber) {
-      setPhoneNumber(user.phoneNumber);
-    }
+    if (user?.phoneNumber) setPhoneNumber(user.phoneNumber);
   }, [user?.phoneNumber]);
 
-  // Fetch user addresses
   useEffect(() => {
     if (showAddressForm) {
       (async () => {
@@ -416,14 +362,10 @@ export default function CheckoutClient() {
     }
   }, [showAddressForm]);
 
-  // Handle address mode change
   useEffect(() => {
-    if (address === "__add_new__") {
-      setAddressMode("add");
-    }
+    if (address === "__add_new__") setAddressMode("add");
   }, [address]);
 
-  // Save new address
   const handleSaveNewAddress = async (newAddress: string) => {
     try {
       if (user?.email.startsWith("guest")) {
@@ -437,9 +379,7 @@ export default function CheckoutClient() {
         databaseId,
         userCollectionId,
         userData.$id,
-        {
-          address: updatedAddresses,
-        },
+        { address: updatedAddresses },
       );
       setUserAddresses(updatedAddresses);
       setAddress(newAddress);
@@ -450,25 +390,20 @@ export default function CheckoutClient() {
       setSelectedPlace(null);
     } catch (err: any) {
       handleError("Failed to save address.");
-      console.error("Save address error:", err);
     }
   };
 
-  // Handle map pick confirmation
   const handleMapPickConfirmation = async (useIt: boolean) => {
     setShowMapPickConfirmation(false);
-    if (useIt && pickedMapAddress.trim()) {
+    if (useIt && pickedMapAddress.trim())
       await handleSaveNewAddress(pickedMapAddress);
-    }
   };
 
-  // Handle new address picked from map
   const handleNewAddressPicked = useCallback((newAddress: string) => {
     setPickedMapAddress(newAddress);
     setShowMapPickConfirmation(true);
   }, []);
 
-  // Calculate delivery time
   const calculateDeliveryTime = useCallback(() => {
     const now = new Date();
     if (deliveryDay === "tomorrow") {
@@ -477,16 +412,11 @@ export default function CheckoutClient() {
       tomorrow.setHours(12, 0, 0, 0);
       return tomorrow;
     }
-
-    if (selectedTimeSlot === "now") {
-      return new Date(now.getTime() + 30 * 60000);
-    }
-
+    if (selectedTimeSlot === "now") return new Date(now.getTime() + 30 * 60000);
     const selectedSlot = timeSlots.find((slot) => slot.id === selectedTimeSlot);
     return selectedSlot?.end || new Date(now.getTime() + 45 * 60000);
   }, [deliveryDay, selectedTimeSlot, timeSlots]);
 
-  // Send notification
   const sendNotification = useCallback(
     async (orderData: any, recipient: string) => {
       try {
@@ -519,19 +449,16 @@ export default function CheckoutClient() {
     [dispatch, handleError],
   );
 
-  // Handle add address
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address.trim()) {
       handleError("Please provide a delivery address.");
       return;
     }
-
     if (!phoneNumber.trim()) {
       handleError("Please provide a phone number.");
       return;
     }
-
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(phoneNumber)) {
       handleError(
@@ -539,31 +466,24 @@ export default function CheckoutClient() {
       );
       return;
     }
-
     setShowAddressForm(false);
   };
 
-  // Handle place order
   const handlePlaceOrder = useCallback(() => {
     if (!hasItems) {
       toast("No items in cart for this restaurant", { duration: 4000 });
       router.push("/");
-    } else {
-      setShowConfirmation(true);
-    }
+    } else setShowConfirmation(true);
   }, [hasItems, router]);
 
-  // Helper to parse distance in km
   const parseDistanceKm = useCallback((distanceStr: string): number => {
     if (!distanceStr) return 0;
     const match = distanceStr.match(/(\d+(?:\.\d+)?)\s*km/);
     return parseFloat(match?.[1] || "0");
   }, []);
 
-  // Handle confirm order
   const handleConfirmOrder = useCallback(async () => {
-    setConfirmError(null); // Clear previous errors
-
+    setConfirmError(null);
     if (!address || !phoneNumber || !hasItems) {
       handleError(
         "Please add a delivery address, phone number, and items to your cart.",
@@ -571,13 +491,10 @@ export default function CheckoutClient() {
       );
       return;
     }
-
     if (!userId) {
       handleError("Please log in to place an order.", true);
       return;
     }
-
-    // Check delivery distance
     if (!isMapPaused && !mapLoading) {
       const distanceKm = parseDistanceKm(deliveryDistance);
       if (distanceKm > 18) {
@@ -591,22 +508,18 @@ export default function CheckoutClient() {
         duration: 6000,
       });
     }
-
-    // Business validation: Order value must be at least equal to delivery fee
     if (paymentMethod === "cash" && subtotal < deliveryFee) {
       handleError(
-        "Order value must be at least equal to delivery fee amount. Please add more items to your cart to continue.",
+        "Order value must be at least equal to delivery fee amount.",
         true,
       );
       return;
     }
-
     setIsOrderLoading(true);
     setIsPlacingOrder(true);
     try {
       const orderId = ID.unique();
       const riderCode = orderId.slice(-4).toUpperCase();
-
       const structuredItems = filteredOrders.map((cartItem: ICartItemFetched) =>
         JSON.stringify({
           itemId: cartItem.itemId,
@@ -620,7 +533,6 @@ export default function CheckoutClient() {
                   );
                   return `${parsedExtra.extraId}_${parsedExtra.quantity}`;
                 } catch (e) {
-                  console.error("Failed to parse extra:", extra, e);
                   return null;
                 }
               })
@@ -629,7 +541,6 @@ export default function CheckoutClient() {
           specialInstructions: cartItem.specialInstructions || "",
         }),
       );
-
       const order = {
         orderId,
         riderCode,
@@ -659,7 +570,6 @@ export default function CheckoutClient() {
         selectedBranchId: selectedBranch,
         apartmentFlat,
       };
-
       const { databaseId, bookedOrdersCollectionId } = validateEnv();
       const placedOrder: IBookedOrderFetched = await databases.createDocument(
         databaseId,
@@ -667,83 +577,67 @@ export default function CheckoutClient() {
         orderId,
         order,
       );
-
       await Promise.all([
         sendNotification(order, "admin"),
         sendNotification(order, userId),
       ]);
-
       await Promise.all(
         filteredOrders.map((item: ICartItemFetched) =>
           dispatch(deleteOrderAsync(item.$id)),
         ),
       );
       dispatch(resetOrders());
-      // message to be sent to the customer
       const customerMessage = `Yum! Order received. \nWe're confirming availability with the restaurant now.`;
-
-      // mssage to be sent to the admin
-      const adminMessage = `Admin Alert: Order #${riderCode} for ${
-        user.fullName || "Customer"
-      } (${formatNigerianPhone(phoneNumber)}) is now ${placedOrder.status
-        .replace(/_/g, " ")
-        .toLowerCase()}.`;
-
-          const smsResult = await sendOrderFeedback({
-            number: formatNigerianPhone(phoneNumber),
-            message: customerMessage,
-            adminNumber: formatNigerianPhone(
-              process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418",
+      const adminMessage = `Admin Alert: Order #${riderCode} for ${user.fullName || "Customer"} (${formatNigerianPhone(phoneNumber)}) is now ${placedOrder.status.replace(/_/g, " ").toLowerCase()}.`;
+      const smsResult = await sendOrderFeedback({
+        number: formatNigerianPhone(phoneNumber),
+        message: customerMessage,
+        adminNumber: formatNigerianPhone(
+          process.env.NEXT_PUBLIC_ADMIN_PHONE_NUMBER || "08023353418",
+        ),
+        adminMessage,
+      });
+      if (!smsResult.success)
+        console.warn("SMS failed, but order is confirmed");
+      try {
+        const emailItems = filteredOrders.map((item: ICartItemFetched) => ({
+          name: item.name || "Menu Item",
+          quantity: item.quantity || 1,
+          price: Number(item.price),
+        }));
+        await fetch("/api/send-admin-order-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId,
+            riderCode,
+            customerName: user?.fullName || "Customer",
+            customerPhone: phoneNumber,
+            address,
+            subtotal,
+            deliveryFee: order.deliveryFee,
+            serviceCharge: SERVICE_CHARGE,
+            total: order.total,
+            paymentMethod,
+            deliveryTime: getDeliveryTimeLabel(
+              deliveryDay,
+              selectedTimeSlot,
+              timeSlots,
             ),
-            adminMessage: adminMessage,
-          });
-
-          if (!smsResult.success) {
-            console.warn("SMS failed, but order is confirmed");
-          }
-          // ==================== NEW: SEND EMAIL TO ADMIN ====================
-          try {
-            const emailItems = filteredOrders.map((item: ICartItemFetched) => ({
-              name: item.name || "Menu Item",
-              quantity: item.quantity || 1,
-              price: Number(item.price),
-            }));
-
-            await fetch("/api/send-admin-order-email", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                orderId,
-                riderCode,
-                customerName: user?.fullName || "Customer",
-                customerPhone: phoneNumber,
-                address,
-                subtotal,
-                deliveryFee: order.deliveryFee,
-                serviceCharge: SERVICE_CHARGE,
-                total: order.total,
-                paymentMethod,
-                deliveryTime: getDeliveryTimeLabel(
-                  deliveryDay,
-                  selectedTimeSlot,
-                  timeSlots,
-                ),
-                deliveryDistance: order.deliveryDistance,
-                deliveryDuration: order.deliveryDuration,
-                items: emailItems,
-                restaurantName: restaurant?.name,
-              }),
-            });
-          } catch (emailErr) {
-            console.warn("Admin email failed but order succeeded:", emailErr);
-          }
-          setShowConfirmation(false);
-          router.push("/order-confirmation");
+            deliveryDistance: order.deliveryDistance,
+            deliveryDuration: order.deliveryDuration,
+            items: emailItems,
+            restaurantName: restaurant?.name,
+          }),
+        });
+      } catch (emailErr) {
+        console.warn("Admin email failed but order succeeded:", emailErr);
+      }
+      setShowConfirmation(false);
+      router.push("/order-confirmation");
     } catch (err) {
       handleError(
-        `Failed to place order: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`,
+        `Failed to place order: ${err instanceof Error ? err.message : "Unknown error"}`,
         true,
       );
     } finally {
@@ -781,269 +675,390 @@ export default function CheckoutClient() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-white to-orange-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900 py-12 px-2 sm:px-6 lg:px-8 flex flex-col items-center">
-        {/* Global paused warning banner */}
-        {isMapPaused && !mapLoading && (
-          <div className="w-full max-w-6xl mb-6 p-4 bg-amber-100/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl text-center">
-            <div className="flex items-center justify-center gap-3">
-              <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-              <p className="font-medium text-amber-800 dark:text-amber-300">
-                Location services temporarily unavailable • Enter address
-                manually • Delivery fee & time will be confirmed
-              </p>
-            </div>
-          </div>
-        )}
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 py-8 px-3 sm:px-6 lg:px-8">
+        {/* ── Paused warning banner ── */}
+        <AnimatePresence>
+          {isMapPaused && !mapLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25 }}
+              className="max-w-6xl mx-auto mb-5"
+            >
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </span>
+                <p className="text-sm text-amber-800 dark:text-amber-300 font-medium flex-1">
+                  Location services temporarily unavailable — please enter your
+                  address manually. Delivery fee &amp; time will be confirmed by
+                  our team.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div className="w-full max-w-6xl mb-8">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* ── Restaurant header card ── */}
           {restaurant && (
-            <div className="flex items-center gap-4 bg-white/95 dark:bg-gray-900/90 rounded-2xl shadow-xl border border-orange-100 dark:border-gray-800 p-6">
-              {restaurant.logo && (
-                <div className="w-16 h-16 relative flex-shrink-0">
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="flex items-center gap-4 bg-white dark:bg-gray-900 rounded-2xl border border-orange-100 dark:border-gray-800 shadow-sm px-5 py-4"
+            >
+              {/* Logo */}
+              {restaurant.logo ? (
+                <div className="relative w-12 h-12 flex-shrink-0 rounded-xl overflow-hidden ring-2 ring-orange-100 dark:ring-orange-900/40">
                   <Image
                     src={fileUrl(
                       validateEnv().restaurantBucketId,
                       restaurant.logo as string,
                     )}
                     alt={restaurant.name}
-                    className="w-full h-full object-cover rounded-full"
-                    width={64}
-                    height={64}
+                    fill
+                    className="object-cover"
                     quality={90}
-                    loading="lazy"
                   />
                 </div>
+              ) : (
+                <div className="w-12 h-12 flex-shrink-0 rounded-xl bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
+                  <Store className="w-5 h-5 text-orange-500" />
+                </div>
               )}
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  Checkout from {restaurant.name}
-                </h1>
-                {/* ←←← REPLACED BLOCK STARTS HERE */}
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1.5">
-                  Est. delivery: {estDeliveryDisplay}
-                </p>
-                {/* ←←← REPLACED BLOCK ENDS HERE */}
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">
+                    {restaurant.name}
+                  </h1>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 uppercase tracking-wide">
+                    Checkout
+                  </span>
+                </div>
+
+                {/* Delivery estimate pill */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Clock className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                  {isCalculatingFee ? (
+                    <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Calculating estimate…
+                    </span>
+                  ) : estDeliveryDisplay ? (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Est. delivery:{" "}
+                      <span className="font-semibold text-gray-700 dark:text-gray-300">
+                        {estDeliveryDisplay}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      Enter address to see estimate
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Item count badge */}
+              {hasItems && (
+                <div className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900">
+                  <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
+                    {filteredOrders.length} item
+                    {filteredOrders.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ── Empty / error states ── */}
+          {!restaurantId ? (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-orange-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Invalid checkout link
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-sm">
+                No restaurant specified. Please select items from the menu to
+                proceed.
+              </p>
+              <Button
+                onClick={() => router.push("/")}
+                className="h-11 px-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-semibold text-sm border-0"
+              >
+                Return to home
+              </Button>
+            </div>
+          ) : !hasItems ? (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-green-100 dark:bg-green-950/40 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Cart is empty
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-sm">
+                No items in your cart for{" "}
+                <span className="font-semibold">
+                  {restaurant?.name || "this restaurant"}
+                </span>
+                . If you just placed an order, it's been submitted!
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={() => router.push("/order-confirmation")}
+                  className="h-11 px-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold text-sm border-0 flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> View confirmation
+                </Button>
+                <Button
+                  onClick={() => router.push("/")}
+                  variant="outline"
+                  className="h-11 px-6 rounded-xl text-sm font-semibold"
+                >
+                  Continue shopping
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // ── Main checkout grid ──
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+              {/* Left column */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-4"
+              >
+                <Section>
+                  <BranchSelector
+                    selectedBranch={selectedBranch}
+                    setSelectedBranch={setSelectedBranch}
+                    branches={branches}
+                  />
+                </Section>
+
+                <Section>
+                  {mapLoading ? (
+                    <div className="h-52 flex flex-col items-center justify-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Loading map services…
+                      </p>
+                    </div>
+                  ) : isMapPaused ? (
+                    <div className="h-52 flex flex-col items-center justify-center text-center px-6 gap-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/20">
+                      <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                          Map temporarily unavailable
+                        </p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 max-w-xs">
+                          {mapPauseMessage ||
+                            "Please enter your address manually below."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <UserLocationMap
+                      userLocation={userLocation}
+                      address={address}
+                      onNewAddressPicked={handleNewAddressPicked}
+                    />
+                  )}
+                </Section>
+
+                <Section>
+                  <AddressSection
+                    offLocationModal={offLocationModal}
+                    address={address}
+                    phoneNumber={phoneNumber}
+                    showAddressForm={showAddressForm}
+                    setShowAddressForm={setShowAddressForm}
+                    addressMode={addressMode}
+                    userAddresses={userAddresses}
+                    setAddress={setAddress}
+                    setAddressMode={setAddressMode}
+                    tempAddress={tempAddress}
+                    setTempAddress={setTempAddress}
+                    manualMode={manualMode}
+                    setManualMode={setManualMode}
+                    googlePlaceSelected={googlePlaceSelected}
+                    setGooglePlaceSelected={setGooglePlaceSelected}
+                    selectedPlace={selectedPlace}
+                    setSelectedPlace={setSelectedPlace}
+                    lastPickedAddress={lastPickedAddress}
+                    setLastPickedAddress={setLastPickedAddress}
+                    apartmentFlat={apartmentFlat}
+                    setApartmentFlat={setApartmentFlat}
+                    label={label}
+                    setLabel={setLabel}
+                    error={error}
+                    setError={setError}
+                    handleSaveNewAddress={handleSaveNewAddress}
+                    handleAddAddress={handleAddAddress}
+                    selectedBranch={selectedBranch}
+                    branches={branches}
+                  />
+                </Section>
+
+                <Section>
+                  <DeliveryOptions
+                    deliveryDay={deliveryDay}
+                    setDeliveryDay={setDeliveryDay}
+                    timeSlots={timeSlots}
+                    selectedTimeSlot={selectedTimeSlot}
+                    setSelectedTimeSlot={setSelectedTimeSlot}
+                  />
+                </Section>
+              </motion.div>
+
+              {/* Right column — sticky */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="space-y-4 lg:sticky lg:top-6 lg:self-start"
+              >
+                <Section elevated>
+                  <OrderSummary
+                    orders={filteredOrders.map((item) => ({
+                      ...item,
+                      price: Number(item.price),
+                      totalPrice: Number(item.totalPrice),
+                    }))}
+                    subtotal={subtotal}
+                    deliveryFee={effectiveDeliveryFee}
+                    isCalculatingFee={isCalculatingFee}
+                    deliveryDistance={deliveryDistance}
+                    deliveryDuration={deliveryDuration}
+                    paymentMethod={paymentMethod}
+                    originalDeliveryFee={deliveryFee}
+                  />
+                </Section>
+
+                <Section>
+                  <PaymentMethodSelector
+                    paymentMethod={paymentMethod}
+                    setPaymentMethod={setPaymentMethod}
+                  />
+                </Section>
+
+                <Section>
+                  <PlaceOrderButton
+                    SERVICE_CHARGE={SERVICE_CHARGE}
+                    subtotal={subtotal}
+                    deliveryFee={deliveryFee}
+                    address={address}
+                    phoneNumber={phoneNumber}
+                    orders={filteredOrders}
+                    isOrderLoading={isOrderLoading}
+                    handlePlaceOrder={handlePlaceOrder}
+                    showConfirmation={showConfirmation}
+                    setShowConfirmation={setShowConfirmation}
+                    handleConfirmOrder={handleConfirmOrder}
+                    error={error}
+                    totalAmount={totalAmount}
+                    confirmError={confirmError}
+                  />
+                </Section>
+              </motion.div>
             </div>
           )}
         </div>
+      </div>
 
-        {!restaurantId ? (
-          <div className="w-full max-w-6xl flex flex-col items-center justify-center py-20">
-            <AlertTriangle className="w-16 h-16 text-orange-500 mb-4" />
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Invalid Checkout Link
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-8">
-              No restaurant specified. Please select items from the cart to
-              proceed.
-            </p>
-            <Button
-              onClick={() => router.push("/")}
-              className="h-12 px-8 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-xl font-semibold"
-            >
-              Return to Home
-            </Button>
-          </div>
-        ) : !hasItems ? (
-          <div className="w-full max-w-6xl flex flex-col items-center justify-center py-20">
-            <CheckCircle className="w-20 h-20 text-green-500 mb-6" />
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Cart Empty
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 text-center max-w-md mb-4">
-              No items in your cart for {restaurant?.name || "this restaurant"}.
-            </p>
-            <p className="text-gray-500 dark:text-gray-500 text-center max-w-md mb-8">
-              If you just placed an order, it has been successfully submitted!
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                onClick={() => router.push("/order-confirmation")}
-                className="h-12 px-8 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold"
-              >
-                <ShoppingBag className="w-5 h-5 mr-2" />
-                View Order Confirmation
-              </Button>
-              <Button
-                onClick={() => router.push("/")}
-                variant="outline"
-                className="h-12 px-8 rounded-xl"
-              >
-                Continue Shopping
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-10">
+      {/* ── Map pick confirmation modal ── */}
+      <AnimatePresence>
+        {showMapPickConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            style={{
+              backgroundColor: "rgba(0,0,0,0.5)",
+              backdropFilter: "blur(6px)",
+            }}
+            onClick={() => !isOrderLoading && handleMapPickConfirmation(false)}
+          >
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-10"
+              initial={{ y: 32, opacity: 0, scale: 0.97 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 32, opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="bg-white dark:bg-gray-900 w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                <BranchSelector
-                  selectedBranch={selectedBranch}
-                  setSelectedBranch={setSelectedBranch}
-                  branches={branches}
-                />
-              </section>
-
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                {mapLoading ? (
-                  <div className="h-64 flex items-center justify-center">
-                    <div className="text-center space-y-3">
-                      <Loader2 className="h-10 w-10 animate-spin mx-auto text-orange-500" />
-                      <p className="text-gray-600 dark:text-gray-300">
-                        Loading map services...
+              <div className="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600" />
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center">
+                      <MapPin className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                        Use this location?
+                      </h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Confirm your delivery address
                       </p>
                     </div>
                   </div>
-                ) : isMapPaused ? (
-                  <div className="h-64 flex flex-col items-center justify-center text-center px-6 py-10 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl">
-                    <MapPin className="h-12 w-12 text-amber-600 dark:text-amber-400 mb-4 opacity-80" />
-                    <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-300 mb-2">
-                      Map services temporarily unavailable
-                    </h3>
-                    <p className="text-sm text-amber-700 dark:text-amber-400 max-w-md">
-                      {mapPauseMessage ||
-                        "We're currently unable to show maps or calculate exact distances. Please enter your address manually."}
-                    </p>
-                  </div>
-                ) : (
-                  <UserLocationMap
-                    userLocation={userLocation}
-                    address={address}
-                    onNewAddressPicked={handleNewAddressPicked}
-                  />
-                )}
-              </section>
+                  <button
+                    onClick={() => handleMapPickConfirmation(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-500" />
+                  </button>
+                </div>
 
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                <AddressSection
-                  offLocationModal={offLocationModal}
-                  address={address}
-                  phoneNumber={phoneNumber}
-                  showAddressForm={showAddressForm}
-                  setShowAddressForm={setShowAddressForm}
-                  addressMode={addressMode}
-                  userAddresses={userAddresses}
-                  setAddress={setAddress}
-                  setAddressMode={setAddressMode}
-                  tempAddress={tempAddress}
-                  setTempAddress={setTempAddress}
-                  manualMode={manualMode}
-                  setManualMode={setManualMode}
-                  googlePlaceSelected={googlePlaceSelected}
-                  setGooglePlaceSelected={setGooglePlaceSelected}
-                  selectedPlace={selectedPlace}
-                  setSelectedPlace={setSelectedPlace}
-                  lastPickedAddress={lastPickedAddress}
-                  setLastPickedAddress={setLastPickedAddress}
-                  apartmentFlat={apartmentFlat}
-                  setApartmentFlat={setApartmentFlat}
-                  label={label}
-                  setLabel={setLabel}
-                  error={error}
-                  setError={setError}
-                  handleSaveNewAddress={handleSaveNewAddress}
-                  handleAddAddress={handleAddAddress}
-                  selectedBranch={selectedBranch}
-                  branches={branches}
-                />
-              </section>
+                <div className="flex items-start gap-2 px-3 py-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                  <MapPin className="w-3.5 h-3.5 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                    {pickedMapAddress}
+                  </p>
+                </div>
 
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                <DeliveryOptions
-                  deliveryDay={deliveryDay}
-                  setDeliveryDay={setDeliveryDay}
-                  timeSlots={timeSlots}
-                  selectedTimeSlot={selectedTimeSlot}
-                  setSelectedTimeSlot={setSelectedTimeSlot}
-                />
-              </section>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleMapPickConfirmation(false)}
+                    className="flex-1 h-11 rounded-xl text-sm font-semibold border-gray-200 dark:border-gray-700"
+                  >
+                    Choose another
+                  </Button>
+                  <button
+                    onClick={() => handleMapPickConfirmation(true)}
+                    className="flex-1 h-11 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Use address
+                  </button>
+                </div>
+              </div>
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="space-y-10 lg:sticky lg:top-10"
-            >
-              <section className="rounded-2xl shadow-2xl bg-white/100 dark:bg-gray-900/95 border border-orange-200 dark:border-gray-800 p-6 mb-2">
-                <OrderSummary
-                  orders={filteredOrders.map((item) => ({
-                    ...item,
-                    price: Number(item.price),
-                    totalPrice: Number(item.totalPrice),
-                  }))}
-                  subtotal={subtotal}
-                  deliveryFee={effectiveDeliveryFee}
-                  isCalculatingFee={isCalculatingFee}
-                  deliveryDistance={deliveryDistance}
-                  deliveryDuration={deliveryDuration}
-                  paymentMethod={paymentMethod}
-                  originalDeliveryFee={deliveryFee}
-                />
-              </section>
-
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                <PaymentMethodSelector
-                  paymentMethod={paymentMethod}
-                  setPaymentMethod={setPaymentMethod}
-                />
-              </section>
-
-              <section className="rounded-2xl shadow-xl bg-white/95 dark:bg-gray-900/90 border border-orange-100 dark:border-gray-800 p-6 mb-2">
-                <PlaceOrderButton
-                  SERVICE_CHARGE={SERVICE_CHARGE}
-                  subtotal={subtotal}
-                  deliveryFee={deliveryFee}
-                  address={address}
-                  phoneNumber={phoneNumber}
-                  orders={filteredOrders}
-                  isOrderLoading={isOrderLoading}
-                  handlePlaceOrder={handlePlaceOrder}
-                  showConfirmation={showConfirmation}
-                  setShowConfirmation={setShowConfirmation}
-                  handleConfirmOrder={handleConfirmOrder}
-                  error={error}
-                  totalAmount={totalAmount}
-                  confirmError={confirmError}
-                />
-              </section>
-            </motion.div>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
+
       {showCashModal && <ShowCashModal setShowCashModal={setShowCashModal} />}
       {offLocationModal && (
         <OffLocationModal setOffLocationModal={setOffLocationModal} />
       )}
-      {/* Inline Map Pick Confirmation */}
-      {showMapPickConfirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8 max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Use This Location?</h3>
-            <p className="mb-6">
-              Do you want to use this address: {pickedMapAddress}?
-            </p>
-            <div className="flex gap-4">
-              <Button onClick={() => handleMapPickConfirmation(true)}>
-                Yes
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleMapPickConfirmation(false)}
-              >
-                No
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Distance Exceeded Modal */}
       {showDistanceExceededModal && (
         <ExceededModal
           deliveryDistance={deliveryDistance}
@@ -1051,5 +1066,27 @@ export default function CheckoutClient() {
         />
       )}
     </>
+  );
+}
+
+/* ── Shared section wrapper ── */
+function Section({
+  children,
+  elevated = false,
+}: {
+  children: React.ReactNode;
+  elevated?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border bg-white dark:bg-gray-900 p-5
+      ${
+        elevated
+          ? "border-orange-200 dark:border-orange-900/60 shadow-md shadow-orange-100/50 dark:shadow-orange-950/30"
+          : "border-gray-100 dark:border-gray-800 shadow-sm"
+      }`}
+    >
+      {children}
+    </div>
   );
 }

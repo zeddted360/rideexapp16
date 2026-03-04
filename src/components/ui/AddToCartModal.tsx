@@ -88,10 +88,7 @@ const AddToCartModal = () => {
   const packagingExtras = useMemo(() => allExtras.filter((e) => packagingRegex.test(e.name)), [allExtras]);
   const optionalExtras = useMemo(() => allExtras.filter((e) => !packagingRegex.test(e.name) && !("isSizeOption" in e && e.isSizeOption === true)), [allExtras]);
 
-  useEffect(() => {
-    if (sizeOptions.length > 0 && !selectedSizeId) setSelectedSizeId(sizeOptions[0].$id);
-  }, [sizeOptions, selectedSizeId]);
-
+ 
   const parsePrice = (p: string | number) => typeof p === "string" ? Number(p.replace(/[₦,]/g, "")) : p;
 
   const itemPrice = parsePrice(item.price);
@@ -356,7 +353,7 @@ const AddToCartModal = () => {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cup Size
+                  Sizes
                 </p>
                 <span className="text-xs bg-orange-100 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400 px-2.5 py-1 rounded-full font-semibold border border-orange-200 dark:border-orange-500/25">
                   Required

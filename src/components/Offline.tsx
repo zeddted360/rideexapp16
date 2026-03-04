@@ -1,29 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WifiOff, AlertTriangle, RefreshCw } from "lucide-react";
+import { WifiOff, AlertTriangle, RefreshCw, X } from "lucide-react";
 
 type ConnectionStatus = "online" | "offline" | "poor";
 
 export default function Offline() {
   const [status, setStatus] = useState<ConnectionStatus>("online");
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     const updateStatus = async () => {
-      // 1. Basic offline check
       if (!navigator.onLine) {
         setStatus("offline");
+        setDismissed(false); // re-show if connection drops again
         return;
       }
 
-      // 2. Smart poor-network detection (real latency + navigator.connection)
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3500);
 
-        // Ping a tiny static asset (always cached by Next.js)
         await fetch("/_next/static/favicon.ico", {
           method: "HEAD",
           cache: "no-store",
@@ -32,25 +31,29 @@ export default function Offline() {
 
         clearTimeout(timeout);
 
-        // Optional: fallback to Network Information API
         const conn = (navigator as any).connection;
         const isPoor =
           conn && ["slow-2g", "2g", "3g"].includes(conn.effectiveType);
 
-        setStatus(isPoor ? "poor" : "online");
+        const newStatus = isPoor ? "poor" : "online";
+        setStatus(newStatus);
+
+        // Reset dismissed state when status changes to a new warning
+        if (newStatus !== "online") setDismissed(false);
       } catch {
         setStatus("offline");
+        setDismissed(false);
       }
     };
 
-    // Initial check
     updateStatus();
 
-    // Listen for browser events
     window.addEventListener("online", updateStatus);
-    window.addEventListener("offline", () => setStatus("offline"));
+    window.addEventListener("offline", () => {
+      setStatus("offline");
+      setDismissed(false);
+    });
 
-    // Periodic check (great for poor/unstable networks)
     interval = setInterval(updateStatus, 15000);
 
     return () => {
@@ -60,13 +63,12 @@ export default function Offline() {
     };
   }, []);
 
-  if (status === "online") return null;
+  if (status === "online" || dismissed) return null;
 
   const isOffline = status === "offline";
   const Icon = isOffline ? WifiOff : AlertTriangle;
   const bgColor = isOffline ? "bg-red-600" : "bg-amber-600";
   const title = isOffline ? "You're offline" : "Slow or unstable connection";
-
   const message = isOffline
     ? "Check your internet connection. We'll automatically reconnect when you're back online."
     : "Some features may load slower than usual.";
@@ -84,13 +86,23 @@ export default function Offline() {
           </div>
         </div>
 
-        <button
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-2 bg-white/20 hover:bg-white/30 active:bg-white/40 px-5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-[0.97]"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Retry
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 active:bg-white/40 px-5 py-2.5 rounded-2xl text-xs font-semibold transition-all active:scale-[0.97]"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+
+          <button
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss notification"
+            className="flex items-center justify-center bg-white/20 hover:bg-white/30 active:bg-white/40 p-2.5 rounded-2xl transition-all active:scale-[0.97]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

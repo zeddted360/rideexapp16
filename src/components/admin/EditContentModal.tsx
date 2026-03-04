@@ -312,18 +312,7 @@ const EditContentModal = ({
                         <option value="non-veg">Non-Vegetarian</option>
                       </select>
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold mb-1.5 block ml-1">
-                        Rating
-                      </Label>
-                      <Input
-                        name="rating"
-                        type="number"
-                        step="0.1"
-                        value={editFormData.rating}
-                        onChange={handleEditChange}
-                      />
-                    </div>
+                   
                   </div>
                 </div>
 
@@ -348,7 +337,7 @@ const EditContentModal = ({
                     {"originalPrice" in editFormData && (
                       <div>
                         <Label className="text-xs font-semibold mb-1.5 block ml-1">
-                          Strike Price (₦)
+                          Original Price (₦)
                         </Label>
                         <Input
                           name="originalPrice"

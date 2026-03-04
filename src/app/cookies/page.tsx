@@ -49,9 +49,15 @@ const CookiesPage = () => {
               RideEx Cookies Policy
             </h2>
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-7">
-              This page explains what cookies are, how RideEx uses them, and how you can manage your preferences. Cookies help us improve your experience on our website and app. For more details, feel free to contact us at{' '}
-              <Link href="mailto:support@rideex.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                support@rideex.com
+              This page explains what cookies are, how RideEx uses them, and how
+              you can manage your preferences. Cookies help us improve your
+              experience on our website and app. For more details, feel free to
+              contact us at{" "}
+              <Link
+                href="mailto:support@rideexapp.com"
+                className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              >
+                support@rideexapp.com
               </Link>
             </p>
           </div>
@@ -62,7 +68,11 @@ const CookiesPage = () => {
               What Are Cookies?
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              Cookies are small text files stored on your device (like your phone or computer) when you visit our website or use our app. They help us remember your preferences, make the site work better, and provide a smoother experience. For example, they might keep you logged in or track how you use our services.
+              Cookies are small text files stored on your device (like your
+              phone or computer) when you visit our website or use our app. They
+              help us remember your preferences, make the site work better, and
+              provide a smoother experience. For example, they might keep you
+              logged in or track how you use our services.
             </div>
           </div>
 
@@ -74,11 +84,22 @@ const CookiesPage = () => {
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
               We use cookies for:
               <ul className="list-disc list-inside mt-2">
-                <li><strong>Essential Cookies:</strong> To run our website and app, like keeping you signed in.</li>
-                <li><strong>Performance Cookies:</strong> To understand how you use our services and improve them.</li>
-                <li><strong>Functional Cookies:</strong> To remember your settings or preferences.</li>
+                <li>
+                  <strong>Essential Cookies:</strong> To run our website and
+                  app, like keeping you signed in.
+                </li>
+                <li>
+                  <strong>Performance Cookies:</strong> To understand how you
+                  use our services and improve them.
+                </li>
+                <li>
+                  <strong>Functional Cookies:</strong> To remember your settings
+                  or preferences.
+                </li>
               </ul>
-              We may also work with third parties (like analytics or delivery partners) who set their own cookies, but we only allow this with your consent where required by law.
+              We may also work with third parties (like analytics or delivery
+              partners) who set their own cookies, but we only allow this with
+              your consent where required by law.
             </div>
           </div>
 
@@ -90,20 +111,29 @@ const CookiesPage = () => {
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
               You can control cookies through your browser settings. Here’s how:
               <ul className="list-disc list-inside mt-2">
-                <li>Check your browser’s “Settings” or “Privacy” menu (e.g., Chrome, Safari).</li>
-                <li>Look for an option to manage cookies or clear browsing data.</li>
-                <li>Choose to accept, block, or delete cookies as you prefer.</li>
+                <li>
+                  Check your browser’s “Settings” or “Privacy” menu (e.g.,
+                  Chrome, Safari).
+                </li>
+                <li>
+                  Look for an option to manage cookies or clear browsing data.
+                </li>
+                <li>
+                  Choose to accept, block, or delete cookies as you prefer.
+                </li>
               </ul>
-              Note that blocking all cookies might affect how our website or app works. We’re working on adding a tool to let you manage cookies directly on our site stay tuned!
+              Note that blocking all cookies might affect how our website or app
+              works. We’re working on adding a tool to let you manage cookies
+              directly on our site stay tuned!
             </div>
           </div>
 
           <div className="mt-12 pt-6 border-t border-gray-200/10 dark:border-white/10 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono mb-2">
-              Last updated: September 2025
+              Last updated: January {new Date().getFullYear()}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-              © 2025 RideEx. All rights reserved.
+              © {new Date().getFullYear()} RideEx. All rights reserved.
             </p>
           </div>
         </div>

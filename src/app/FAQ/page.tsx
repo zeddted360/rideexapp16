@@ -49,8 +49,8 @@ const FAQPage = () => {
             </h2>
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-7">
               Find answers to common questions about RideEx, your on-demand food delivery platform. If you need further assistance, contact us at{' '}
-              <a href="mailto:rideexapp@gmail.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                rideexapp@gmail.com
+              <a href="mailto:support@rideexapp.com" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                support@rideexapp.com
               </a>{' '}
               or{' '}
               <a href="tel:+2347072087857" className="text-orange-600 dark:text-orange-400 underline hover:text-red-600 dark:hover:text-red-400 transition-colors">

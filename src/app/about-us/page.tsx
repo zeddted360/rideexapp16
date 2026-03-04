@@ -46,7 +46,7 @@ const AboutPage = () => {
           {/* Hero Section */}
           <div className="text-center">
             <Image
-              src="/images/rideex_food_delivery_logo.jpg" 
+              src="/images/rideex_food_delivery_logo.jpg"
               alt="RideEx Logo"
               width={150}
               height={150}
@@ -56,7 +56,11 @@ const AboutPage = () => {
               Welcome to RideEx
             </h2>
             <p className="text-lg text-gray-700 dark:text-gray-300 leading-7">
-              At Rideex Logistics and Freight company Limited, we are revolutionizing the way people access essential services across Nigeria and beyond. Established with a vision to deliver efficiency and convenience, we combine cutting-edge technology with a robust motorcycle-based logistics network.
+              At Rideex Logistics and Freight company Limited, we are
+              revolutionizing the way people access essential services across
+              Nigeria and beyond. Established with a vision to deliver
+              efficiency and convenience, we combine cutting-edge technology
+              with a robust motorcycle-based logistics network.
             </p>
           </div>
 
@@ -66,7 +70,11 @@ const AboutPage = () => {
               Our Mission
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              Our mission is to connect communities with a wide range of services—restaurants, fruit, grocery and supermarket, pharmacy, and health—through fast, reliable, and affordable delivery. We strive to empower local businesses and enhance customer satisfaction with every ride.
+              Our mission is to connect communities with a wide range of
+              services—restaurants, fruit, grocery and supermarket, pharmacy,
+              and health—through fast, reliable, and affordable delivery. We
+              strive to empower local businesses and enhance customer
+              satisfaction with every ride.
             </div>
           </div>
 
@@ -76,13 +84,16 @@ const AboutPage = () => {
               Our Services
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              As a Moto freight and logistics company, RideEx facilitates the ordering, delivery, and logistics of goods and services. Our efficient motorcycle network ensures quick deliveries from:
+              As a Moto freight and logistics company, RideEx facilitates the
+              ordering, delivery, and logistics of goods and services. Our
+              efficient motorcycle network ensures quick deliveries from:
               <ul className="list-disc list-inside mt-2">
                 <li>Restaurants</li>
                 <li>Fruit and grocery/supermarket stores</li>
                 <li>Pharmacy and health services</li>
               </ul>
-              We leverage our mobile application to provide a seamless experience for both users and service providers.
+              We leverage our mobile application to provide a seamless
+              experience for both users and service providers.
             </div>
           </div>
 
@@ -92,16 +103,19 @@ const AboutPage = () => {
               Our Vision
             </h2>
             <div className="text-sm text-gray-700 dark:text-gray-300 leading-7 bg-gray-100/10 dark:bg-white/10 p-5 rounded-xl shadow-md hover:bg-gray-100/15 dark:hover:bg-white/15 transition-all duration-300">
-              We aim to be the leading Moto logistics provider in Africa, expanding our reach to deliver innovative solutions that bridge the gap between consumers and essential services, all while promoting sustainability through eco-friendly transport.
+              We aim to be the leading Moto logistics provider in Africa,
+              expanding our reach to deliver innovative solutions that bridge
+              the gap between consumers and essential services, all while
+              promoting sustainability through eco-friendly transport.
             </div>
           </div>
 
           <div className="mt-12 pt-6 border-t border-gray-200/10 dark:border-white/10 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono mb-2">
-              Established: 2024 | Last updated: September 2025
+              Established: 2024 | Last updated: January {new Date().getFullYear()}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-              © 2025 RideEx. All rights reserved.
+              © {new Date().getFullYear()} RideEx. All rights reserved.
             </p>
           </div>
         </div>

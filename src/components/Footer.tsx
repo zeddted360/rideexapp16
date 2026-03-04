@@ -7,15 +7,15 @@ import {
   Phone,
   MapPin,
   ArrowRight,
-  Info, 
-  HelpCircle, 
-  FileText, 
-  Cookie, 
-  Lock, 
-  UserPlus, 
-  Bike, 
-  Twitter, 
-  Youtube, 
+  Info,
+  HelpCircle,
+  FileText,
+  Cookie,
+  Lock,
+  UserPlus,
+  Bike,
+  Twitter,
+  Youtube,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,33 +45,30 @@ export default function Footer() {
     setEmailError("");
     setLoading(true);
     try {
-      // 1. Check if email already exists
       const { newsLetterCollectionId, databaseId } = validateEnv();
       const response = await databases.listDocuments(
         databaseId,
         newsLetterCollectionId,
-        [Query.equal("email", email)]
+        [Query.equal("email", email)],
       );
       if (response.documents.length > 0) {
         toast.error("You are already subscribed!");
         setLoading(false);
         return;
       }
-      // 2. Save new subscriber
       await databases.createDocument(
         databaseId,
         newsLetterCollectionId,
         ID.unique(),
-        { email }
+        { email },
       );
-      // 3. Send welcome email
       await fetch("/api/newsletter/welcome", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
       toast.success(
-        "Subscribed successfully! Check your email for a welcome message."
+        "Subscribed successfully! Check your email for a welcome message.",
       );
       setEmail("");
     } catch (err) {
@@ -83,95 +80,115 @@ export default function Footer() {
 
   return (
     <ClientOnly>
-      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden pb-20 md:pb-8">
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden pb-20 md:pb-8 text-white">
         {/* Background Pattern */}
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-red-500/10 to-pink-500/10"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.02)_1px,transparent_0)] bg-[length:20px_20px]"></div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          {/* Main Footer Content */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
-            {/* Brand Section */}
-            <div className="lg:col-span-1 space-y-6">
-              <div className="relative h-20 w-20 p-4 rounded-full overflow-hidden shadow-md">
+          {/* ── Main grid ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
+            {/* ── Brand ── */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Logo — fixed: explicit size + object-contain so image is never clipped */}
+              <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-orange-500/30 shadow-lg shadow-orange-500/20">
                 <Image
                   src="/RideEx_Logo.jpg"
                   alt="RideEx logo"
-                  fill
+                  width={100}
+                  height={100}
                   priority
                   quality={100}
+                  className="w-full h-full"
                 />
               </div>
-              <p className="text-gray-300 leading-relaxed">
+
+              <p className="text-gray-400 text-sm leading-relaxed">
                 {t("footer.brandDescription")}
               </p>
 
-              {/* Contact Info */}
+              {/* Contact */}
               <div className="space-y-3">
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <Phone className="w-4 h-4 text-orange-400" />
-                  <Link href="tel:+2347072087857" className="text-sm">
-                    +234 707 208 7857
-                  </Link>
-                </div>
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <Mail className="w-4 h-4 text-orange-400" />
-                  <Link
-                    href="mailto:support@rideexapp.com?subject=Support Request"
-                    className="text-sm"
+                {[
+                  {
+                    Icon: Phone,
+                    href: "tel:+2347072087857",
+                    text: "+234 707 208 7857",
+                  },
+                  {
+                    Icon: Mail,
+                    href: "mailto:support@rideexapp.com?subject=Support Request",
+                    text: "support@rideexapp.com",
+                  },
+                  { Icon: MapPin, href: null, text: "Owerri, Nigeria" },
+                ].map(({ Icon, href, text }) => (
+                  <div
+                    key={text}
+                    className="flex items-center gap-3 text-gray-300 group"
                   >
-                    support@rideexapp.com
-                  </Link>
-                </div>
-                <div className="flex items-center space-x-3 text-gray-300">
-                  <MapPin className="w-4 h-4 text-orange-400" />
-                  <span className="text-sm">Owerri, Nigeria</span>
-                </div>
+                    <span
+                      className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ background: "rgba(249,115,22,0.12)" }}
+                    >
+                      <Icon className="w-3.5 h-3.5 text-orange-400" />
+                    </span>
+                    {href ? (
+                      <Link
+                        href={href}
+                        className="text-sm hover:text-orange-400 transition-colors duration-200"
+                      >
+                        {text}
+                      </Link>
+                    ) : (
+                      <span className="text-sm">{text}</span>
+                    )}
+                  </div>
+                ))}
               </div>
-
-             
             </div>
-            
-            {/* Quick Links */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-white">
+
+            {/* ── Quick Links ── */}
+            <div className="lg:col-span-2 space-y-5">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-orange-400">
                 {t("footer.quickLinks")}
               </h3>
-              <ul className="space-y-3">
+              <ul className="space-y-2.5">
                 {[
                   {
                     href: "/about-us",
                     label: "About Us",
-                    icon: <Info className="w-4 h-4" />,
+                    icon: <Info className="w-3.5 h-3.5" />,
                   },
                   {
                     href: "/FAQ",
                     label: "FAQ",
-                    icon: <HelpCircle className="w-4 h-4" />,
+                    icon: <HelpCircle className="w-3.5 h-3.5" />,
                   },
                   {
                     href: "/terms",
-                    label: "Terms and Conditions",
-                    icon: <FileText className="w-4 h-4" />,
+                    label: "Terms & Conditions",
+                    icon: <FileText className="w-3.5 h-3.5" />,
                   },
                   {
                     href: "/cookies",
                     label: "Cookies",
-                    icon: <Cookie className="w-4 h-4" />,
+                    icon: <Cookie className="w-3.5 h-3.5" />,
                   },
                   {
                     href: "/privacy",
-                    label: "Privacy Policies",
-                    icon: <Lock className="w-4 h-4" />,
+                    label: "Privacy Policy",
+                    icon: <Lock className="w-3.5 h-3.5" />,
                   },
                 ].map((link) => (
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="flex items-center space-x-2 text-gray-300 hover:text-orange-400 transition-all duration-300 group"
+                      className="flex items-center gap-2.5 text-gray-400 hover:text-white transition-all duration-200 group"
                     >
-                      <span className="text-sm">{link.icon}</span>
-                      <span className="text-sm group-hover:translate-x-1 transition-transform duration-300">
+                      <span className="text-orange-500/60 group-hover:text-orange-400 transition-colors">
+                        {link.icon}
+                      </span>
+                      <span className="text-sm group-hover:translate-x-0.5 transition-transform duration-200">
                         {link.label}
                       </span>
                     </Link>
@@ -180,32 +197,44 @@ export default function Footer() {
               </ul>
             </div>
 
-            {/* Let's Do It Together */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-white">
-                Let's Do It Together
+            {/* ── Let's Do It Together ── */}
+            <div className="lg:col-span-2 space-y-5">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-orange-400">
+                Join Us
               </h3>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {[
                   {
                     href: "/vendor/register",
                     label: "Become a Vendor",
-                    icon: <UserPlus className="w-4 h-4 text-orange-400" />,
+                    icon: <UserPlus className="w-4 h-4" />,
+                    desc: "Sell on RideEx",
                   },
                   {
                     href: "/become-a-rider",
                     label: "Join as a Rider",
-                    icon: <Bike className="w-4 h-4 text-orange-400" />,
+                    icon: <Bike className="w-4 h-4" />,
+                    desc: "Deliver with us",
                   },
                 ].map((item) => (
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className="flex items-center space-x-3 text-gray-300 hover:text-orange-400 transition-all duration-300 group"
+                      className="flex items-start gap-3 p-3 rounded-xl border border-white/5 hover:border-orange-500/30 bg-white/[0.03] hover:bg-orange-500/[0.06] transition-all duration-200 group"
                     >
-                      {item.icon}
-                      <span className="text-sm group-hover:translate-x-1 transition-transform duration-300">
-                        {item.label}
+                      <span
+                        className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-orange-400"
+                        style={{ background: "rgba(249,115,22,0.12)" }}
+                      >
+                        {item.icon}
+                      </span>
+                      <span>
+                        <span className="block text-sm font-medium text-white group-hover:text-orange-300 transition-colors">
+                          {item.label}
+                        </span>
+                        <span className="block text-xs text-gray-500 mt-0.5">
+                          {item.desc}
+                        </span>
                       </span>
                     </Link>
                   </li>
@@ -213,19 +242,28 @@ export default function Footer() {
               </ul>
             </div>
 
-            {/* Newsletter & Social */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-white">
-                {t("footer.followUs")}
+            {/* ── Newsletter + Social ── */}
+            <div className="lg:col-span-5 space-y-6">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-orange-400">
+                Stay Connected
               </h3>
 
-              {/* Newsletter */}
-              <div className="space-y-3">
-                <p className="text-sm text-gray-300">
-                  Subscribe to our newsletter for exclusive offers and updates.
-                </p>
-                <form onSubmit={handleSubscribe} className="space-y-3">
-                  <div className="relative">
+              {/* Newsletter card */}
+              <div
+                className="rounded-2xl p-5 space-y-4"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <div>
+                  <p className="text-sm font-medium text-white">Newsletter</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Exclusive offers and updates, straight to your inbox.
+                  </p>
+                </div>
+                <form onSubmit={handleSubscribe} className="space-y-2">
+                  <div className="flex gap-2">
                     <Input
                       type="email"
                       value={email}
@@ -234,23 +272,27 @@ export default function Footer() {
                         setEmailError("");
                       }}
                       required
-                      placeholder="Enter your email"
-                      className="w-full pr-12 pl-4 py-3 bg-white/10 border-white/20 text-white placeholder-gray-400 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all duration-300 text-sm backdrop-blur-sm"
+                      placeholder="your@email.com"
+                      className="flex-1 h-10 bg-white/8 border-white/10 text-white placeholder-gray-500 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                       aria-label="Email for newsletter"
                     />
                     <Button
                       type="submit"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white p-2 rounded-lg transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-400 flex items-center justify-center gap-2"
-                      aria-label="Subscribe to newsletter"
                       disabled={loading}
+                      className="h-10 px-4 rounded-xl text-white text-sm font-medium disabled:opacity-60 flex items-center gap-2 flex-shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #f97316 0%, #e11d48 100%)",
+                      }}
+                      aria-label="Subscribe"
                     >
                       {loading ? (
-                        <>
-                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></span>
-                          Subscribing...
-                        </>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
-                        <ArrowRight className="w-4 h-4" />
+                        <>
+                          Subscribe
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </>
                       )}
                     </Button>
                   </div>
@@ -260,36 +302,36 @@ export default function Footer() {
                 </form>
               </div>
 
-              {/* Social Media */}
+              {/* Social */}
               <div className="space-y-3">
-                <p className="text-sm text-gray-300">
-                  Follow us on social media
+                <p className="text-xs text-gray-500 uppercase tracking-widest">
+                  Follow us
                 </p>
-                <div className="flex space-x-3">
+                <div className="flex gap-2.5">
                   {[
                     {
                       href: "https://www.instagram.com/rideexlogisticsbackup?igsh=MTAwbzRia3BudXI4dg==",
                       Icon: Instagram,
                       label: "Instagram",
-                      color: "hover:text-pink-400",
+                      hoverColor: "#e1306c",
                     },
                     {
                       href: "https://www.facebook.com/share/16nYLmfi26/?mibextid=wwXIfr",
                       Icon: Facebook,
                       label: "Facebook",
-                      color: "hover:text-blue-600",
+                      hoverColor: "#1877f2",
                     },
                     {
-                      href: "https://x.com/rideex", // Updated to use "x.com" for X
-                      Icon: Twitter, // Using Twitter icon as a stand-in for X
+                      href: "https://x.com/rideex",
+                      Icon: Twitter,
                       label: "X",
-                      color: "hover:text-blue-400",
+                      hoverColor: "#1da1f2",
                     },
                     {
                       href: "https://youtube.com/@rideexpresslogistics?si=A3WVHwtNYG9Lqdjg",
                       Icon: Youtube,
                       label: "YouTube",
-                      color: "hover:text-red-600", // YouTube's brand color on hover
+                      hoverColor: "#ff0000",
                     },
                   ].map((social) => (
                     <a
@@ -297,10 +339,33 @@ export default function Footer() {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`p-3 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 transition-all duration-300 ${social.color} group`}
                       aria-label={social.label}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-110"
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (
+                          e.currentTarget as HTMLAnchorElement
+                        ).style.background = `${social.hoverColor}22`;
+                        (
+                          e.currentTarget as HTMLAnchorElement
+                        ).style.borderColor = `${social.hoverColor}55`;
+                        (e.currentTarget as HTMLAnchorElement).style.color =
+                          social.hoverColor;
+                      }}
+                      onMouseLeave={(e) => {
+                        (
+                          e.currentTarget as HTMLAnchorElement
+                        ).style.background = "rgba(255,255,255,0.06)";
+                        (
+                          e.currentTarget as HTMLAnchorElement
+                        ).style.borderColor = "rgba(255,255,255,0.08)";
+                        (e.currentTarget as HTMLAnchorElement).style.color = "";
+                      }}
                     >
-                      <social.Icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+                      <social.Icon className="w-4 h-4 text-gray-400" />
                     </a>
                   ))}
                 </div>
@@ -308,89 +373,85 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Bottom Section */}
-          <div className="mt-12 pt-8 border-t border-white/10">
-            <div className="flex flex-col lg:flex-row justify-between items-center gap-6">
-              {/* App Download */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <p className="text-sm text-gray-300 font-medium">
-                  Download our app
-                </p>
-                <div className="flex space-x-3">
-                  {[
-                    {
-                      href: "https://play.google.com",
-                      label: "Google Play",
-                      aria: "Download from Google Play",
-                      image: "/play-store.png",
-                    },
-                    {
-                      href: "https://www.apple.com/app-store",
-                      label: "App Store",
-                      aria: "Download from App Store",
-                      image: "/app-store.png",
-                    },
-                  ].map((store) => (
-                    <a
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.alert("App coming soon!");
-                        return;
-                      }}
-                      key={store.href}
-                      href={"#"}
-                      // target="_blank"
-                      // rel="noopener noreferrer"
-                      className="group"
-                    >
-                      <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 hover:bg-white/20 transition-all duration-300 group-hover:scale-105">
-                        <Image
-                          src={store.image}
-                          alt={store.label}
-                          width={24}
-                          height={24}
-                          className="object-contain w-8 h-auto"
-                        />
-                        <div className="text-left">
-                          <div className="text-xs text-gray-400">
-                            Download on
-                          </div>
-                          <div className="text-sm font-medium text-white">
-                            {store.label}
-                          </div>
-                        </div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
+          {/* ── Divider ── */}
+          <div
+            className="my-10 h-px"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 20%, rgba(255,255,255,0.08) 80%, transparent)",
+            }}
+          />
 
-              {/* Copyright */}
-              <div className="flex flex-col sm:flex-row items-center gap-4 text-sm text-gray-400">
-                <p>© {new Date().getFullYear()} RideEx. All rights reserved.</p>
-                <div className="flex items-center space-x-4">
-                  <Link
-                    href="/privacy"
-                    className="hover:text-orange-400 transition-colors"
+          {/* ── Bottom bar ── */}
+          <div className="flex flex-col lg:flex-row justify-between items-center gap-6">
+            {/* App download */}
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-xs text-gray-500 uppercase tracking-widest">
+                Download app
+              </span>
+              <div className="flex gap-3">
+                {[
+                  { label: "Google Play", image: "/play-store.png" },
+                  { label: "App Store", image: "/app-store.png" },
+                ].map((store) => (
+                  <button
+                    key={store.label}
+                    onClick={() => window.alert("App coming soon!")}
+                    className="flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all duration-200 hover:scale-105"
+                    style={{
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
                   >
-                    Privacy Policy
-                  </Link>
-                  <Link
-                    href="/terms"
-                    className="hover:text-orange-400 transition-colors"
-                  >
-                    Terms of Service
-                  </Link>
-                  {/* Admin Newsletter Link */}
-                  {user?.isAdmin && role === "admin" && (
+                    <Image
+                      src={store.image}
+                      alt={store.label}
+                      width={22}
+                      height={22}
+                      className="object-contain w-[22px] h-[22px]"
+                    />
+                    <div className="text-left">
+                      <div className="text-[10px] text-gray-500 leading-none">
+                        Download on
+                      </div>
+                      <div className="text-xs font-medium text-white mt-0.5">
+                        {store.label}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Copyright + links */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500">
+              <p>© {new Date().getFullYear()} RideEx. All rights reserved.</p>
+              <div className="flex items-center gap-1">
+                <span className="hidden sm:block w-1 h-1 rounded-full bg-gray-700" />
+                <Link
+                  href="/privacy"
+                  className="px-2 hover:text-orange-400 transition-colors"
+                >
+                  Privacy
+                </Link>
+                <span className="w-1 h-1 rounded-full bg-gray-700" />
+                <Link
+                  href="/terms"
+                  className="px-2 hover:text-orange-400 transition-colors"
+                >
+                  Terms
+                </Link>
+                {user?.isAdmin && role === "admin" && (
+                  <>
+                    <span className="w-1 h-1 rounded-full bg-gray-700" />
                     <Link
                       href="/admin/newsletter"
-                      className="ml-4 text-orange-400 underline hover:text-orange-600 transition-colors font-semibold"
+                      className="px-2 text-orange-400 hover:text-orange-300 font-semibold transition-colors"
                     >
                       Newsletter Admin
                     </Link>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
