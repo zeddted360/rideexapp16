@@ -129,7 +129,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
         </div>
       )}
 
-      {/* ── Confirmation Modal ── */}
+      {/* ── Confirmation Modal — always centered ── */}
       <AnimatePresence>
         {showConfirmation && (
           <motion.div
@@ -137,7 +137,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
             style={{
               backgroundColor: "rgba(0,0,0,0.55)",
               backdropFilter: "blur(6px)",
@@ -145,11 +145,11 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
             onClick={() => !isOrderLoading && setShowConfirmation(false)}
           >
             <motion.div
-              initial={{ y: 40, opacity: 0, scale: 0.97 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 40, opacity: 0, scale: 0.97 }}
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="bg-white dark:bg-gray-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+              className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal top accent */}

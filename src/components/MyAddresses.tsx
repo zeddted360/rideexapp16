@@ -1,14 +1,44 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MapPin, Plus, Trash2, X, Loader2, CheckCircle } from "lucide-react";
+import {
+  MapPin,
+  Plus,
+  Trash2,
+  X,
+  Loader2,
+  CheckCircle,
+  Navigation,
+  Home,
+  Search,
+  Map,
+  PenLine,
+  AlertTriangle,
+} from "lucide-react";
 import { account, databases, validateEnv } from "@/utils/appwrite";
 import { Loader } from "@googlemaps/js-api-loader";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { useGlobalMapControl } from "@/hooks/useGlobalMapControl";
+
+/* ─────────────────────────────────────────────
+   Colour tokens (mirrors checkout orange palette)
+───────────────────────────────────────────── */
+const C = {
+  orange: "#f97316",
+  orangeLight: "#fff7ed",
+  orangeMid: "#ffedd5",
+  orangeDark: "#ea580c",
+  text: "#111827",
+  textMuted: "#6b7280",
+  border: "#e5e7eb",
+  white: "#ffffff",
+  red: "#ef4444",
+  redLight: "#fef2f2",
+  amber: "#f59e0b",
+  amberLight: "#fffbeb",
+};
 
 const MyAddresses = () => {
   const [addresses, setAddresses] = useState<string[]>([]);
@@ -19,7 +49,7 @@ const MyAddresses = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addressMode, setAddressMode] = useState<"search" | "map" | "manual">(
-    "search"
+    "search",
   );
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -27,6 +57,8 @@ const MyAddresses = () => {
   } | null>(null);
   const [pickedLocation, setPickedLocation] =
     useState<google.maps.LatLng | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   const autocompleteInput = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -35,8 +67,9 @@ const MyAddresses = () => {
   const markerRef = useRef<google.maps.Marker | null>(null);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(
+    null,
+  );
   const dragendListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
@@ -46,21 +79,18 @@ const MyAddresses = () => {
     message: pauseMessage,
   } = useGlobalMapControl();
 
-  // Get user current location
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      (pos) =>
         setUserLocation({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-        });
-      },
+        }),
       (err) => console.error("Geolocation error:", err),
-      { enableHighAccuracy: true, maximumAge: 0 }
+      { enableHighAccuracy: true, maximumAge: 0 },
     );
   }, []);
 
-  // Load user's saved addresses
   useEffect(() => {
     (async () => {
       try {
@@ -69,7 +99,7 @@ const MyAddresses = () => {
         const userDoc = await databases.getDocument(
           databaseId,
           userCollectionId,
-          userData.$id
+          userData.$id,
         );
         setAddresses(Array.isArray(userDoc.address) ? userDoc.address : []);
       } catch {
@@ -80,20 +110,18 @@ const MyAddresses = () => {
     })();
   }, []);
 
-  // Load Google Maps SDK
   useEffect(() => {
     const { googleMapsApiKey } = validateEnv();
     if (!googleMapsApiKey) return;
-
-    const loader = new Loader({
+    new Loader({
       apiKey: googleMapsApiKey,
       version: "weekly",
       libraries: ["places", "geometry", "marker"],
-    });
-    loader.load().then(() => setMapLoaded(true));
+    })
+      .load()
+      .then(() => setMapLoaded(true));
   }, []);
 
-  // Autocomplete setup
   useEffect(() => {
     if (
       !mapLoaded ||
@@ -103,14 +131,10 @@ const MyAddresses = () => {
       isMapPaused
     )
       return;
-
-    const imoSouthWest = new window.google.maps.LatLng(4.75, 6.83);
-    const imoNorthEast = new window.google.maps.LatLng(5.92, 7.42);
     const imoBounds = new window.google.maps.LatLngBounds(
-      imoSouthWest,
-      imoNorthEast
+      new window.google.maps.LatLng(4.75, 6.83),
+      new window.google.maps.LatLng(5.92, 7.42),
     );
-
     autocompleteRef.current = new window.google.maps.places.Autocomplete(
       autocompleteInput.current,
       {
@@ -118,10 +142,9 @@ const MyAddresses = () => {
         componentRestrictions: { country: "ng" },
         bounds: imoBounds,
         strictBounds: false,
-      }
+      },
     );
-
-    const placeChangedListener = autocompleteRef.current.addListener(
+    const listener = autocompleteRef.current.addListener(
       "place_changed",
       () => {
         const place = autocompleteRef.current?.getPlace();
@@ -131,15 +154,11 @@ const MyAddresses = () => {
             setPickedLocation(place.geometry.location);
             setAddressMode("map");
           }
-        } else if (place?.name) {
-          setNewAddress(place.name);
-        }
-      }
+        } else if (place?.name) setNewAddress(place.name);
+      },
     );
-
     return () => {
-      if (placeChangedListener)
-        google.maps.event.removeListener(placeChangedListener);
+      if (listener) google.maps.event.removeListener(listener);
       if (autocompleteRef.current) {
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
         autocompleteRef.current = null;
@@ -147,7 +166,6 @@ const MyAddresses = () => {
     };
   }, [mapLoaded, showAddForm, addressMode, isMapPaused]);
 
-  // Map initialization - only when not paused
   useEffect(() => {
     if (
       !mapLoaded ||
@@ -157,35 +175,32 @@ const MyAddresses = () => {
       !mapRef.current
     )
       return;
-
     geocoderRef.current = new window.google.maps.Geocoder();
     const center =
       pickedLocation ||
       (userLocation
         ? new window.google.maps.LatLng(userLocation.lat, userLocation.lng)
         : new window.google.maps.LatLng(5.4768, 7.0308));
-    const zoom = pickedLocation || userLocation ? 15 : 10;
-
     mapInstance.current = new window.google.maps.Map(mapRef.current, {
       center,
-      zoom,
+      zoom: pickedLocation || userLocation ? 15 : 10,
       mapTypeId: "roadmap" as google.maps.MapTypeId,
     });
+    placesServiceRef.current = new window.google.maps.places.PlacesService(
+      mapInstance.current,
+    );
 
-    // Current location marker
     if (userLocation && !pickedLocation && !currentMarkerRef.current) {
       currentMarkerRef.current = new window.google.maps.Marker({
         position: new window.google.maps.LatLng(
           userLocation.lat,
-          userLocation.lng
+          userLocation.lng,
         ),
         map: mapInstance.current,
         title: "Your Current Location",
         icon: { url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png" },
       });
     }
-
-    // Draggable marker
     if (pickedLocation && !markerRef.current) {
       markerRef.current = new window.google.maps.Marker({
         position: pickedLocation,
@@ -195,122 +210,135 @@ const MyAddresses = () => {
       });
     }
 
-    // Drag end listener
+    const haversineMetres = (a: google.maps.LatLng, b: google.maps.LatLng) => {
+      const R = 6371000,
+        toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat() - a.lat()),
+        dLng = toRad(b.lng() - a.lng());
+      const sin2 =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(a.lat())) *
+          Math.cos(toRad(b.lat())) *
+          Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(sin2));
+    };
+    const pickBestGeocoderResult = (results: google.maps.GeocoderResult[]) => {
+      const priority = [
+        "street_address",
+        "premise",
+        "subpremise",
+        "establishment",
+        "route",
+      ];
+      const pool = results.filter((r) => !r.types.includes("plus_code"));
+      for (const type of priority) {
+        const m = pool.find((r) => r.types.includes(type));
+        if (m) return m.formatted_address;
+      }
+      return (pool[0] || results[0]).formatted_address;
+    };
+    const resolveAddress = (latlng: google.maps.LatLng) => {
+      if (!placesServiceRef.current || !geocoderRef.current) return;
+      placesServiceRef.current.nearbySearch(
+        { location: latlng, radius: 40 },
+        (placeResults, status) => {
+          const apply = (addr: string) => {
+            setNewAddress(addr);
+            setPickedLocation(latlng);
+          };
+          if (
+            status === google.maps.places.PlacesServiceStatus.OK &&
+            placeResults?.length
+          ) {
+            const closest = placeResults.reduce((b, c) => {
+              const cL = c.geometry?.location,
+                bL = b.geometry?.location;
+              if (!cL) return b;
+              if (!bL) return c;
+              return haversineMetres(latlng, cL) < haversineMetres(latlng, bL)
+                ? c
+                : b;
+            });
+            const d = closest.geometry?.location
+              ? haversineMetres(latlng, closest.geometry.location)
+              : Infinity;
+            if (d <= 40 && closest.name) {
+              apply(
+                [
+                  closest.name,
+                  ...(closest.vicinity && closest.vicinity !== closest.name
+                    ? [closest.vicinity]
+                    : []),
+                ].join(", "),
+              );
+              return;
+            }
+          }
+          geocoderRef.current!.geocode({ location: latlng }, (results, s) => {
+            if (s === window.google.maps.GeocoderStatus.OK && results?.length)
+              apply(pickBestGeocoderResult(results));
+            else
+              apply(`${latlng.lat().toFixed(6)}, ${latlng.lng().toFixed(6)}`);
+          });
+        },
+      );
+    };
+
     if (markerRef.current && !dragendListenerRef.current) {
       dragendListenerRef.current = google.maps.event.addListener(
         markerRef.current,
         "dragend",
-        (event: google.maps.MapMouseEvent) => {
-          const latlng = event.latLng;
-          if (!latlng) return;
-          setPickedLocation(latlng);
-          geocoderRef.current?.geocode(
-            { location: latlng },
-            (results, status) => {
-              if (
-                status === window.google.maps.GeocoderStatus.OK &&
-                results?.[0]
-              ) {
-                setNewAddress(results[0].formatted_address || "");
-              } else {
-                setNewAddress(
-                  `${latlng.lat().toFixed(6)}, ${latlng.lng().toFixed(6)}`
-                );
-              }
-            }
-          );
-        }
+        (e: google.maps.MapMouseEvent) => {
+          if (e.latLng) resolveAddress(e.latLng);
+        },
       );
     }
-
-    // Click to place marker
     if (!clickListenerRef.current) {
       clickListenerRef.current = google.maps.event.addListener(
         mapInstance.current,
         "click",
-        (event: google.maps.MapMouseEvent) => {
-          const latlng = event.latLng;
-          if (!latlng) return;
-          setPickedLocation(latlng);
-
+        (e: google.maps.MapMouseEvent) => {
+          if (!e.latLng) return;
           if (markerRef.current) {
-            markerRef.current.setPosition(latlng);
+            markerRef.current.setPosition(e.latLng);
           } else {
             markerRef.current = new window.google.maps.Marker({
-              position: latlng,
+              position: e.latLng,
               map: mapInstance.current,
               draggable: true,
               title: "Drag to adjust location",
             });
-
             dragendListenerRef.current = google.maps.event.addListener(
               markerRef.current,
               "dragend",
-              (dragEvent: google.maps.MapMouseEvent) => {
-                const dragLatlng = dragEvent.latLng;
-                if (!dragLatlng) return;
-                setPickedLocation(dragLatlng);
-                geocoderRef.current?.geocode(
-                  { location: dragLatlng },
-                  (results, status) => {
-                    if (
-                      status === window.google.maps.GeocoderStatus.OK &&
-                      results?.[0]
-                    ) {
-                      setNewAddress(results[0].formatted_address || "");
-                    } else {
-                      setNewAddress(
-                        `${dragLatlng.lat().toFixed(6)}, ${dragLatlng
-                          .lng()
-                          .toFixed(6)}`
-                      );
-                    }
-                  }
-                );
-              }
+              (de: google.maps.MapMouseEvent) => {
+                if (de.latLng) resolveAddress(de.latLng);
+              },
             );
           }
-
-          geocoderRef.current?.geocode(
-            { location: latlng },
-            (results, status) => {
-              if (
-                status === window.google.maps.GeocoderStatus.OK &&
-                results?.[0]
-              ) {
-                setNewAddress(results[0].formatted_address || "");
-              } else {
-                setNewAddress(
-                  `${latlng.lat().toFixed(6)}, ${latlng.lng().toFixed(6)}`
-                );
-              }
-            }
-          );
-        }
+          resolveAddress(e.latLng);
+        },
       );
     }
 
     return () => {
-      if (clickListenerRef.current) {
-        google.maps.event.removeListener(clickListenerRef.current);
-        clickListenerRef.current = null;
-      }
-      if (dragendListenerRef.current) {
-        google.maps.event.removeListener(dragendListenerRef.current);
-        dragendListenerRef.current = null;
-      }
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-        markerRef.current = null;
-      }
-      if (currentMarkerRef.current) {
-        currentMarkerRef.current.setMap(null);
-        currentMarkerRef.current = null;
-      }
+      [clickListenerRef, dragendListenerRef].forEach((r) => {
+        if (r.current) {
+          google.maps.event.removeListener(r.current);
+          r.current = null;
+        }
+      });
+      [markerRef, currentMarkerRef].forEach((r) => {
+        if (r.current) {
+          r.current.setMap(null);
+          r.current = null;
+        }
+      });
       if (mapInstance.current) {
         google.maps.event.clearInstanceListeners(mapInstance.current);
         mapInstance.current = null;
       }
+      placesServiceRef.current = null;
     };
   }, [
     mapLoaded,
@@ -321,36 +349,35 @@ const MyAddresses = () => {
     pickedLocation,
   ]);
 
+  const resetForm = () => {
+    setShowAddForm(false);
+    setAddressMode("search");
+    setNewAddress("");
+    setApartmentFlat("");
+    setPickedLocation(null);
+  };
+
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAddress.trim()) return;
-
     setLoading(true);
     try {
       const userData = await account.get();
       const { databaseId, userCollectionId } = validateEnv();
-      let fullAddress = newAddress.trim();
-      if (apartmentFlat.trim()) {
-        fullAddress = `${apartmentFlat.trim()}, ${fullAddress}`;
-      }
-      const updatedAddresses = [...addresses, fullAddress];
+      const fullAddress = apartmentFlat.trim()
+        ? `${apartmentFlat.trim()}, ${newAddress.trim()}`
+        : newAddress.trim();
+      const updated = [...addresses, fullAddress];
       await databases.updateDocument(
         databaseId,
         userCollectionId,
         userData.$id,
-        {
-          address: updatedAddresses,
-        }
+        { address: updated },
       );
-      setAddresses(updatedAddresses);
-      setNewAddress("");
-      setApartmentFlat("");
-      setShowAddForm(false);
-      setAddressMode("search");
-      setPickedLocation(null);
-      toast.success("Address added successfully!");
-    } catch (err) {
-      setError("Failed to add address.");
+      setAddresses(updated);
+      resetForm();
+      toast.success("Address saved!");
+    } catch {
       toast.error("Failed to add address");
     } finally {
       setLoading(false);
@@ -362,444 +389,455 @@ const MyAddresses = () => {
     try {
       const userData = await account.get();
       const { databaseId, userCollectionId } = validateEnv();
-      const updatedAddresses = addresses.filter((_, i) => i !== idx);
+      const updated = addresses.filter((_, i) => i !== idx);
       await databases.updateDocument(
         databaseId,
         userCollectionId,
         userData.$id,
-        {
-          address: updatedAddresses,
-        }
+        { address: updated },
       );
-      setAddresses(updatedAddresses);
-      toast.success("Address deleted successfully!");
+      setAddresses(updated);
+      toast.success("Address removed");
       setDeleteConfirm(null);
     } catch {
-      setError("Failed to delete address.");
       toast.error("Failed to delete address");
     } finally {
       setLoading(false);
     }
   };
 
-  const modeButtons = [
-    { key: "search", label: "Search" },
-    { key: "map", label: "Map" },
-    { key: "manual", label: "Manual" },
-  ] as const;
+  const modeConfig = [
+    { key: "search" as const, label: "Search", Icon: Search },
+    { key: "map" as const, label: "Map", Icon: Map },
+    { key: "manual" as const, label: "Manual", Icon: PenLine },
+  ];
 
-  if (initialLoading) {
+  /* ── Loading screen ── */
+  if (initialLoading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 dark:from-gray-900 dark:to-orange-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50">
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
+          initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center space-y-4"
+          className="flex flex-col items-center gap-4"
         >
-          <div className="relative w-20 h-20 mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-orange-100 flex items-center justify-center">
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="w-20 h-20 rounded-full border-4 border-orange-200 dark:border-orange-800 border-t-orange-500"
-            />
+              transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
+            >
+              <Loader2 className="w-7 h-7 text-orange-500" />
+            </motion.div>
           </div>
-          <div className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-            Loading addresses...
-          </div>
+          <p className="text-sm font-medium text-gray-500">
+            Loading your addresses…
+          </p>
         </motion.div>
       </div>
     );
-  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-8 sm:py-12 max-w-6xl">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50/40 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="max-w-4xl mx-auto px-4 py-10 sm:py-14">
+        {/* ── Page header ── */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 sm:mb-12"
+          className="mb-10"
         >
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white mb-2 tracking-tight">
-            My Addresses
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Manage your delivery addresses for faster checkout
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-200">
+              <MapPin className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+              My Addresses
+            </h1>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 ml-[52px]">
+            Saved delivery locations for faster checkout
           </p>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8"
-        >
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-              Saved Addresses
-            </h2>
-            <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-sm font-semibold">
-              {addresses.length}
-            </span>
-          </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Address</span>
-          </Button>
-        </motion.div>
-
+        {/* ── Error banner ── */}
         <AnimatePresence>
           {error && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-center"
+              exit={{ opacity: 0 }}
+              className="mb-6 flex items-center gap-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm"
             >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               {error}
             </motion.div>
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {showAddForm && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-              onClick={() => {
-                setShowAddForm(false);
-                setAddressMode("search");
-                setNewAddress("");
-                setApartmentFlat("");
-                setPickedLocation(null);
-              }}
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto"
-              >
-                <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-                    Add New Address
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setAddressMode("search");
-                      setNewAddress("");
-                      setApartmentFlat("");
-                      setPickedLocation(null);
-                    }}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                    type="button"
-                  >
-                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
+        {/* ── Add button + count row ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="flex items-center justify-between mb-6"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {addresses.length} saved{" "}
+              {addresses.length === 1 ? "address" : "addresses"}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 h-10 px-4 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-bold shadow-md shadow-orange-200 dark:shadow-orange-950 transition-all hover:-translate-y-px"
+          >
+            <Plus className="w-4 h-4" /> Add address
+          </button>
+        </motion.div>
 
-                <div className="p-6">
-                  {pauseLoading ? (
-                    <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                      <Loader2 className="w-12 h-12 animate-spin text-orange-500" />
-                      <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                        Loading map services...
-                      </p>
-                    </div>
-                  ) : isMapPaused ? (
-                    <div className="py-12 flex flex-col items-center justify-center text-center space-y-6">
-                      <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
-                        <MapPin className="w-10 h-10 text-amber-600 dark:text-amber-400 opacity-80" />
-                      </div>
-
-                      <div className="space-y-4">
-                        <h3 className="text-2xl font-bold text-amber-800 dark:text-amber-300">
-                          Location Services Unavailable
-                        </h3>
-                        <p className="text-gray-700 dark:text-gray-300 max-w-md">
-                          {pauseMessage ||
-                            "Address search and map picking are temporarily unavailable. Please try again later."}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Our team is working to restore full functionality as
-                          soon as possible.
-                        </p>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAddForm(false)}
-                        className="mt-6 px-10 h-11 rounded-xl font-semibold border-2"
-                      >
-                        Close
-                      </Button>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleAddAddress} className="space-y-6">
-                      <div className="space-y-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {addressMode === "map"
-                            ? "Pick your location on the map"
-                            : addressMode === "manual"
-                            ? "Enter address manually"
-                            : "Search for your address or place"}
-                        </label>
-
-                        {addressMode === "search" && (
-                          <input
-                            ref={autocompleteInput}
-                            type="text"
-                            value={newAddress}
-                            onChange={(e) => setNewAddress(e.target.value)}
-                            placeholder="Start typing your address or place..."
-                            className="w-full rounded-xl px-4 py-3 text-base border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition-all"
-                          />
-                        )}
-
-                        {addressMode === "manual" && (
-                          <Input
-                            value={newAddress}
-                            onChange={(e) => setNewAddress(e.target.value)}
-                            placeholder="Enter full address manually"
-                            className="w-full rounded-xl px-4 py-3 text-base border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900"
-                          />
-                        )}
-
-                        {addressMode === "map" && (
-                          <div className="relative">
-                            <div
-                              ref={mapRef}
-                              className="w-full h-64 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-200"
-                            />
-                            {newAddress && (
-                              <p className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-gray-700 dark:text-gray-300">
-                                Selected: {newAddress}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {modeButtons.map(({ key, label }) => (
-                            <Button
-                              key={key}
-                              type="button"
-                              variant={
-                                addressMode === key ? "default" : "outline"
-                              }
-                              size="sm"
-                              onClick={() => {
-                                setAddressMode(key);
-                                if (key !== "map") setPickedLocation(null);
-                              }}
-                              className={
-                                addressMode === key
-                                  ? "bg-orange-500 text-white hover:bg-orange-600"
-                                  : ""
-                              }
-                            >
-                              {label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Apartment/Flat/Suite (Optional)
-                        </label>
-                        <Input
-                          value={apartmentFlat}
-                          onChange={(e) => setApartmentFlat(e.target.value)}
-                          placeholder="e.g. Apt 2B, Suite 301, Flat 4"
-                          className="w-full rounded-xl px-4 py-3 text-base border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-orange-500 bg-gray-50 dark:bg-gray-900"
-                        />
-                      </div>
-
-                      <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setShowAddForm(false);
-                            setAddressMode("search");
-                            setNewAddress("");
-                            setApartmentFlat("");
-                            setPickedLocation(null);
-                          }}
-                          className="w-full sm:flex-1 h-12 rounded-xl font-semibold border-2"
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          disabled={loading || !newAddress.trim()}
-                          className="w-full sm:flex-1 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                              Adding...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-5 h-5 mr-2" />
-                              Add Address
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+        {/* ── Address cards grid ── */}
         {addresses.length === 0 ? (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.15 }}
+            className="flex flex-col items-center justify-center py-20 rounded-3xl border-2 border-dashed border-orange-200 dark:border-orange-900 bg-orange-50/40 dark:bg-orange-950/10"
           >
-            <Card className="rounded-2xl shadow-xl border-0 bg-white dark:bg-gray-800 overflow-hidden">
-              <CardContent className="flex flex-col items-center justify-center py-16 sm:py-20">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200, delay: 0.3 }}
-                  className="w-24 h-24 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mb-6"
-                >
-                  <MapPin className="w-12 h-12 text-orange-500" />
-                </motion.div>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                  No Addresses Yet
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 text-center mb-8 max-w-md">
-                  Add your first delivery address to make ordering faster and
-                  easier
-                </p>
-                <Button
-                  onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-2 h-12 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-                >
-                  <Plus className="w-5 h-5" /> Add Your First Address
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center mb-4">
+              <Navigation className="w-7 h-7 text-orange-400" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-1">
+              No addresses yet
+            </h3>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-6 text-center max-w-xs">
+              Add a delivery address so you can order faster without retyping
+              every time.
+            </p>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 h-11 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-bold shadow-md shadow-orange-200 transition-all hover:-translate-y-px"
+            >
+              <Plus className="w-4 h-4" /> Add your first address
+            </button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AnimatePresence>
-              {addresses.map((address, idx) => (
+              {addresses.map((addr, idx) => (
                 <motion.div
                   key={idx}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.05 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ delay: idx * 0.04 }}
                   layout
+                  className="group relative flex items-start gap-4 p-5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-orange-200 dark:hover:border-orange-900 transition-all duration-200"
                 >
-                  <Card className="rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-xl transition-all duration-300 overflow-hidden h-full">
-                    <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-700">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                            <MapPin className="w-5 h-5 text-orange-500" />
-                          </div>
-                          <CardTitle className="text-base font-bold text-gray-900 dark:text-white">
-                            Address {idx + 1}
-                          </CardTitle>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteConfirm(idx)}
-                          disabled={loading}
-                          className="flex-shrink-0 h-9 w-9 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed break-words">
-                        {address}
-                      </p>
-                    </CardContent>
-                  </Card>
+                  {/* Number badge */}
+                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900 flex items-center justify-center">
+                    <span className="text-sm font-bold text-orange-500">
+                      {idx + 1}
+                    </span>
+                  </div>
+
+                  {/* Address text */}
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Home className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-orange-400">
+                        Delivery address
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 leading-relaxed break-words">
+                      {addr}
+                    </p>
+                  </div>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={() => setDeleteConfirm(idx)}
+                    disabled={loading}
+                    className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </motion.div>
               ))}
             </AnimatePresence>
           </div>
         )}
+      </div>
 
-        <AnimatePresence>
-          {deleteConfirm !== null && (
+      {/* ════════════════════════════════════════
+          ADD ADDRESS MODAL
+      ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showAddForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={resetForm}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-              onClick={() => setDeleteConfirm(null)}
+              initial={{ scale: 0.96, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 8 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+              style={{ maxHeight: "min(92vh, 680px)" }}
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md p-6"
-              >
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                    <Trash2 className="w-8 h-8 text-red-500" />
+              {/* Top accent bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600" />
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center">
+                    <MapPin className="w-4 h-4 text-orange-500" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                      Delete Address?
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Are you sure you want to delete this address? This action
-                      cannot be undone.
+                    <h2 className="text-base font-bold text-gray-900 dark:text-white">
+                      Add new address
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Search, pin on map, or type manually
                     </p>
                   </div>
-                  <div className="flex flex-col-reverse sm:flex-row gap-3 w-full pt-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setDeleteConfirm(null)}
-                      className="w-full sm:flex-1 h-11 rounded-xl font-semibold"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleDeleteAddress(deleteConfirm)}
-                      disabled={loading}
-                      className="w-full sm:flex-1 h-11 rounded-xl font-semibold bg-red-500 hover:bg-red-600"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        "Delete Address"
-                      )}
-                    </Button>
-                  </div>
                 </div>
-              </motion.div>
+                <button
+                  onClick={resetForm}
+                  className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="h-px bg-gray-100 dark:bg-gray-800 mx-6" />
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                {/* Paused / loading states */}
+                {pauseLoading && (
+                  <div className="py-16 flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      Loading map services…
+                    </p>
+                  </div>
+                )}
+
+                {!pauseLoading && isMapPaused && (
+                  <div className="py-10 flex flex-col items-center text-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
+                      <AlertTriangle className="w-7 h-7 text-amber-500" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900 dark:text-white mb-1">
+                        Location unavailable
+                      </h3>
+                      <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
+                        {pauseMessage ||
+                          "Map & search are temporarily down. Please try again later."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={resetForm}
+                      className="h-10 px-6 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                )}
+
+                {!pauseLoading && !isMapPaused && (
+                  <form onSubmit={handleAddAddress} className="space-y-5">
+                    {/* Mode tabs */}
+                    <div className="flex gap-2 p-1 rounded-xl bg-gray-100 dark:bg-gray-800">
+                      {modeConfig.map(({ key, label, Icon }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setAddressMode(key);
+                            if (key !== "map") setPickedLocation(null);
+                          }}
+                          className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg text-xs font-semibold transition-all
+                            ${
+                              addressMode === key
+                                ? "bg-white dark:bg-gray-900 text-orange-500 shadow-sm"
+                                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                            }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Search mode */}
+                    {addressMode === "search" && (
+                      <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          ref={autocompleteInput}
+                          type="text"
+                          value={newAddress}
+                          onChange={(e) => setNewAddress(e.target.value)}
+                          placeholder="Search address or place name…"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    )}
+
+                    {/* Manual mode */}
+                    {addressMode === "manual" && (
+                      <div className="relative">
+                        <PenLine className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          value={newAddress}
+                          onChange={(e) => setNewAddress(e.target.value)}
+                          placeholder="Street, area, city, state…"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    )}
+
+                    {/* Map mode */}
+                    {addressMode === "map" && (
+                      <div className="space-y-2">
+                        <div className="relative w-full h-60 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+                          <div ref={mapRef} className="w-full h-full" />
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none z-10">
+                            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow border border-gray-100 dark:border-gray-700">
+                              <p className="text-[11px] text-gray-500 font-medium whitespace-nowrap">
+                                Tap map or drag pin
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {newAddress && (
+                          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900">
+                            <MapPin className="w-3.5 h-3.5 text-orange-500 flex-shrink-0 mt-0.5" />
+                            <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                              {newAddress}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Apartment field */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                        Apartment / Flat{" "}
+                        <span className="normal-case font-normal">
+                          (optional)
+                        </span>
+                      </label>
+                      <Input
+                        value={apartmentFlat}
+                        onChange={(e) => setApartmentFlat(e.target.value)}
+                        placeholder="e.g. Flat 2B, Block A"
+                        className="rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 h-11 text-sm focus:ring-orange-400"
+                      />
+                    </div>
+
+                    {/* Footer actions */}
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="flex-1 h-12 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading || !newAddress.trim()}
+                        className="flex-1 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-bold shadow-md shadow-orange-200 dark:shadow-orange-950 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> Saving…
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" /> Save address
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ════════════════════════════════════════
+          DELETE CONFIRM MODAL
+      ════════════════════════════════════════ */}
+      <AnimatePresence>
+        {deleteConfirm !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setDeleteConfirm(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="h-1 w-full bg-gradient-to-r from-red-400 to-red-500" />
+              <div className="p-6 flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/40 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
+                    Remove this address?
+                  </h3>
+                  <p className="text-sm text-gray-400 leading-relaxed max-w-xs">
+                    "{addresses[deleteConfirm]}"
+                  </p>
+                </div>
+                <div className="flex gap-3 w-full pt-1">
+                  <button
+                    onClick={() => setDeleteConfirm(null)}
+                    className="flex-1 h-11 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Keep it
+                  </button>
+                  <button
+                    onClick={() => handleDeleteAddress(deleteConfirm)}
+                    disabled={loading}
+                    className="flex-1 h-11 rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-sm font-bold shadow-md shadow-red-200 dark:shadow-red-950 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" /> Remove
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

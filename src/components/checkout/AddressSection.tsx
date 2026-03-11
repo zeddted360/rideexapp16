@@ -16,6 +16,7 @@ import {
   AlertCircle,
   X,
   Search,
+  Store,
 } from "lucide-react";
 import { useGlobalMapControl } from "@/hooks/useGlobalMapControl";
 import toast from "react-hot-toast";
@@ -115,6 +116,8 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstance = useRef<google.maps.Map | null>(null);
   const markerInstance = useRef<google.maps.Marker | null>(null);
+  // Separate marker for the branch pin so it's never draggable
+  const branchMarkerRef = useRef<google.maps.Marker | null>(null);
   const autocompleteInput = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -133,12 +136,21 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
   const [hasDismissedNewPrompt, setHasDismissedNewPrompt] = useState(false);
   const [locating, setLocating] = useState(false);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(
+    null,
+  );
+  // Stores the exact LatLng of the last autocomplete pick so the map marker
+  // lands on the right spot even if the map initialises after the search.
+  const pickedPlaceLatLngRef = useRef<google.maps.LatLng | null>(null);
 
   const {
     isPaused: isMapPaused,
     loading: mapLoading,
     message: pauseMessage,
   } = useGlobalMapControl();
+
+  // ── Resolve selected branch data ─────────────────────────────────────────
+  const selectedBranchData = branches.find((b) => b.id === selectedBranch);
 
   const handleQuickCurrentLocation = () => {
     if (!geocoderRef.current) {
@@ -248,68 +260,236 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
       !window.google?.maps
     )
       return;
+
     const imoBounds = new window.google.maps.LatLngBounds(
       new window.google.maps.LatLng(5.3, 6.9),
       new window.google.maps.LatLng(5.6, 7.2),
     );
+
     if (mapRef.current && !mapInstance.current) {
-      const initialCenter = userLocation || mapCenter;
+      // ── Initial centre: picked place → user location → branch → default ─────────
+      // mapCenter is updated to the searched place coords when autocomplete fires.
+      // Prioritise it so the map opens centred on the address the user just searched.
+      const DEFAULT_LAT = 5.4862;
+      const hasPickedPlace = mapCenter.lat !== DEFAULT_LAT;
+      const initialCenter = hasPickedPlace
+        ? mapCenter
+        : userLocation ||
+          (selectedBranchData
+            ? { lat: selectedBranchData.lat, lng: selectedBranchData.lng }
+            : mapCenter);
+
       mapInstance.current = new window.google.maps.Map(mapRef.current, {
         center: initialCenter,
         zoom: 15,
         mapTypeControl: false,
         streetViewControl: false,
       });
+
+      // PlacesService needs a live map instance
+      placesServiceRef.current = new window.google.maps.places.PlacesService(
+        mapInstance.current,
+      );
+
+      // ── Draggable user-delivery marker (orange) ───────────────────────────
       markerInstance.current = new window.google.maps.Marker({
         position: initialCenter,
         map: mapInstance.current,
         draggable: true,
+        title: "Your delivery location",
+        // Orange pin via the built-in BestIcon trick
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: "#f97316",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2.5,
+        },
       });
+
       setMapCenter(initialCenter);
+
+      // Snap marker to exact LatLng from autocomplete if available
+      if (pickedPlaceLatLngRef.current) {
+        markerInstance.current?.setPosition(pickedPlaceLatLngRef.current);
+        mapInstance.current.setCenter(pickedPlaceLatLngRef.current);
+        mapInstance.current.setZoom(17);
+      }
+
+      // ── Static branch marker (blue store icon) ────────────────────────────
+      if (selectedBranchData) {
+        branchMarkerRef.current = new window.google.maps.Marker({
+          position: {
+            lat: selectedBranchData.lat,
+            lng: selectedBranchData.lng,
+          },
+          map: mapInstance.current,
+          draggable: false,
+          title: selectedBranchData.name,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: "#3b82f6",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 2.5,
+          },
+          label: {
+            text: "🏪",
+            fontSize: "18px",
+          },
+        });
+
+        // Info window so user knows which dot is the branch
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `<div style="font-size:12px;font-weight:600;color:#1e3a5f;padding:2px 4px">${selectedBranchData.name}<br/><span style="font-weight:400;color:#64748b">${selectedBranchData.address}</span></div>`,
+        });
+        branchMarkerRef.current.addListener("click", () => {
+          infoWindow.open(mapInstance.current, branchMarkerRef.current);
+        });
+
+        // If we have both branch + user location, fit map to show both
+        if (userLocation) {
+          const bounds = new window.google.maps.LatLngBounds();
+          bounds.extend({
+            lat: selectedBranchData.lat,
+            lng: selectedBranchData.lng,
+          });
+          bounds.extend(userLocation);
+          mapInstance.current.fitBounds(bounds, {
+            top: 60,
+            right: 40,
+            bottom: 60,
+            left: 40,
+          });
+        }
+      }
+
+      // ── Shared resolver: Places nearbySearch → geocoder fallback ──────────
+      // Mirrors the same logic in useUserMap.ts so both maps behave identically.
+      // Places API catches named establishments (hotels, schools, etc.) that the
+      // geocoder road-network database doesn't know about.
+      const haversineMetres = (
+        a: google.maps.LatLng,
+        b: google.maps.LatLng,
+      ): number => {
+        const R = 6371000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(b.lat() - a.lat());
+        const dLng = toRad(b.lng() - a.lng());
+        const sin2 =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(a.lat())) *
+            Math.cos(toRad(b.lat())) *
+            Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(sin2));
+      };
+
+      const pickBestGeocoderResult = (
+        results: google.maps.GeocoderResult[],
+      ): google.maps.GeocoderResult => {
+        const priority = [
+          "street_address",
+          "premise",
+          "subpremise",
+          "establishment",
+          "route",
+        ];
+        const filtered = results.filter((r) => !r.types.includes("plus_code"));
+        const pool = filtered.length > 0 ? filtered : results;
+        for (const type of priority) {
+          const match = pool.find((r) => r.types.includes(type));
+          if (match) return match;
+        }
+        return pool[0];
+      };
+
+      const resolveAddress = (
+        latLng: google.maps.LatLng,
+        centerMap = false,
+      ) => {
+        if (!placesServiceRef.current || !geocoderRef.current) return;
+
+        placesServiceRef.current.nearbySearch(
+          { location: latLng, radius: 40 },
+          (placeResults, placeStatus) => {
+            const applyAddress = (
+              addr: string,
+              placeResult?: google.maps.GeocoderResult,
+            ) => {
+              setTempAddress(addr);
+              setGooglePlaceSelected(true);
+              // Pass through a geocoder-shaped object so setSelectedPlace stays consistent
+              setSelectedPlace(placeResult ?? { formatted_address: addr });
+              setLastPickedAddress(addr);
+              if (centerMap) mapInstance.current?.setCenter(latLng);
+              setShowPickConfirmation(true);
+            };
+
+            if (
+              placeStatus === google.maps.places.PlacesServiceStatus.OK &&
+              placeResults &&
+              placeResults.length > 0
+            ) {
+              const closest = placeResults.reduce((best, candidate) => {
+                const cLoc = candidate.geometry?.location;
+                const bLoc = best.geometry?.location;
+                if (!cLoc) return best;
+                if (!bLoc) return candidate;
+                return haversineMetres(latLng, cLoc) <
+                  haversineMetres(latLng, bLoc)
+                  ? candidate
+                  : best;
+              });
+
+              const closestLoc = closest.geometry?.location;
+              const distM = closestLoc
+                ? haversineMetres(latLng, closestLoc)
+                : Infinity;
+
+              if (distM <= 40 && closest.name) {
+                const parts: string[] = [];
+                if (closest.name) parts.push(closest.name);
+                if (closest.vicinity && closest.vicinity !== closest.name)
+                  parts.push(closest.vicinity);
+                applyAddress(parts.join(", "));
+                return;
+              }
+            }
+
+            // Fallback to street-level reverse geocoding
+            geocoderRef.current!.geocode(
+              { location: latLng },
+              (gResults, gStatus) => {
+                if (gStatus === "OK" && gResults && gResults.length > 0) {
+                  const best = pickBestGeocoderResult(gResults);
+                  applyAddress(best.formatted_address, best);
+                }
+              },
+            );
+          },
+        );
+      };
+
       mapInstance.current.addListener(
         "click",
         (e: google.maps.MapMouseEvent) => {
-          if (e.latLng && geocoderRef.current) {
+          if (e.latLng) {
             markerInstance.current?.setPosition(e.latLng);
-            geocoderRef.current.geocode(
-              { location: e.latLng },
-              (results, status) => {
-                if (status === "OK" && results?.[0]) {
-                  const newAddress = results[0].formatted_address;
-                  setTempAddress(newAddress);
-                  setGooglePlaceSelected(true);
-                  setSelectedPlace(results[0]);
-                  setLastPickedAddress(newAddress);
-                  mapInstance.current?.setCenter(e.latLng as any);
-                  setShowPickConfirmation(true);
-                }
-              },
-            );
+            resolveAddress(e.latLng, true);
           }
         },
       );
+
       markerInstance.current.addListener(
         "dragend",
         (e: google.maps.MapMouseEvent) => {
-          if (e.latLng && geocoderRef.current) {
-            geocoderRef.current.geocode(
-              { location: e.latLng },
-              (results, status) => {
-                if (status === "OK" && results?.[0]) {
-                  const newAddress = results[0].formatted_address;
-                  setTempAddress(newAddress);
-                  setGooglePlaceSelected(true);
-                  setSelectedPlace(results[0]);
-                  setLastPickedAddress(newAddress);
-                  mapInstance.current?.setCenter(e.latLng as any);
-                  setShowPickConfirmation(true);
-                }
-              },
-            );
-          }
+          if (e.latLng) resolveAddress(e.latLng, true);
         },
       );
     }
+
     if (autocompleteInput.current && !autocompleteRef.current) {
       autocompleteRef.current = new window.google.maps.places.Autocomplete(
         autocompleteInput.current,
@@ -329,9 +509,15 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
         if (place?.geometry?.location) {
           const location = place.geometry.location;
           const newCenter = { lat: location.lat(), lng: location.lng() };
+          // Always store the exact LatLng so map init can snap to it
+          pickedPlaceLatLngRef.current = location;
           setMapCenter(newCenter);
-          mapInstance.current?.setCenter(newCenter);
-          markerInstance.current?.setPosition(newCenter);
+          // If the map is already mounted, move the marker immediately
+          if (mapInstance.current && markerInstance.current) {
+            mapInstance.current.setCenter(location);
+            mapInstance.current.setZoom(17);
+            markerInstance.current.setPosition(location);
+          }
           const newAddress = place.formatted_address || place.name || "";
           setTempAddress(newAddress);
           setGooglePlaceSelected(true);
@@ -341,6 +527,7 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
         }
       });
     }
+
     return () => {
       if (autocompleteRef.current)
         window.google.maps.event.clearInstanceListeners(
@@ -354,8 +541,30 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
         markerInstance.current.setMap(null);
         markerInstance.current = null;
       }
+      if (branchMarkerRef.current) {
+        branchMarkerRef.current.setMap(null);
+        branchMarkerRef.current = null;
+      }
+      placesServiceRef.current = null;
+      pickedPlaceLatLngRef.current = null;
     };
   }, [mapLoaded, manualMode, addressMode, userLocation]);
+
+  // ── Update branch marker when selectedBranch changes ──────────────────────
+  // (user switches branch from the BranchSelector while modal is open)
+  useEffect(() => {
+    if (!mapInstance.current || !selectedBranchData) return;
+
+    // Move existing branch marker or create a new one
+    const branchPos = {
+      lat: selectedBranchData.lat,
+      lng: selectedBranchData.lng,
+    };
+    if (branchMarkerRef.current) {
+      branchMarkerRef.current.setPosition(branchPos);
+      (branchMarkerRef.current as any).title = selectedBranchData.name;
+    }
+  }, [selectedBranch, selectedBranchData]);
 
   const handleUseNewLocation = (useIt: boolean) => {
     setShowNewLocationPrompt(false);
@@ -495,8 +704,8 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
 
       {/* ── New Location Prompt ── */}
       {showNewLocationPrompt && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 space-y-4 animate-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center flex-shrink-0">
                 <Navigation className="w-5 h-5 text-orange-500" />
@@ -536,7 +745,7 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
       {/* ── Address Modal ── */}
       {showAddressForm && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           onClick={() => {
             setShowAddressForm(false);
             setManualMode(false);
@@ -546,7 +755,8 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
           }}
         >
           <div
-            className="bg-white dark:bg-gray-900 w-full sm:max-w-lg mx-0 sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+            className="bg-white dark:bg-gray-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            style={{ maxHeight: "min(92vh, 680px)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
@@ -575,6 +785,21 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                 <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
+
+            {/* Branch context pill */}
+            {selectedBranchData && (
+              <div className="mx-6 mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900">
+                <Store className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium truncate">
+                  Delivering from{" "}
+                  <span className="font-bold">{selectedBranchData.name}</span>
+                  {" — "}
+                  <span className="font-normal">
+                    {selectedBranchData.address}
+                  </span>
+                </p>
+              </div>
+            )}
 
             {/* Divider */}
             <div className="h-px bg-gray-100 dark:bg-gray-800 mx-6" />
@@ -630,7 +855,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
               {/* ── ADD MODE ── */}
               {addressMode === "add" && (
                 <>
-                  {/* Loading state */}
                   {mapLoading && (
                     <div className="py-16 flex flex-col items-center justify-center gap-4">
                       <div className="w-16 h-16 rounded-2xl bg-orange-50 dark:bg-orange-950/40 flex items-center justify-center">
@@ -642,7 +866,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                     </div>
                   )}
 
-                  {/* Paused state */}
                   {!mapLoading && isMapPaused && (
                     <div className="space-y-5">
                       <div className="flex flex-col items-center text-center py-6 space-y-3">
@@ -672,10 +895,8 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                     </div>
                   )}
 
-                  {/* Normal map mode */}
                   {!mapLoading && !isMapPaused && !manualMode && (
                     <div className="space-y-4">
-                      {/* Search input */}
                       <div className="relative">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         <input
@@ -689,29 +910,50 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                           )}
                       </div>
 
-                      {/* Map */}
-                      <div className="relative w-full h-64 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
-                        {mapLoaded ? (
-                          <div
-                            ref={mapRef}
-                            style={{ width: "100%", height: "100%" }}
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full bg-gray-100 dark:bg-gray-800 gap-2">
-                            <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
-                            <p className="text-xs text-gray-400">
-                              Loading map…
-                            </p>
+                      {/* Map with legend */}
+                      <div className="space-y-1.5">
+                        <div className="relative w-full h-64 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+                          {mapLoaded ? (
+                            <div
+                              ref={mapRef}
+                              style={{ width: "100%", height: "100%" }}
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full bg-gray-100 dark:bg-gray-800 gap-2">
+                              <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
+                              <p className="text-xs text-gray-400">
+                                Loading map…
+                              </p>
+                            </div>
+                          )}
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none z-10">
+                            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-md border border-gray-100 dark:border-gray-700">
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">
+                                Tap map or drag pin to set location
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Map legend */}
+                        {selectedBranchData && (
+                          <div className="flex items-center gap-4 px-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-3 h-3 rounded-full bg-orange-500 border-2 border-white shadow-sm inline-block" />
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                Your location
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">🏪</span>
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                {selectedBranchData.name}
+                              </span>
+                            </div>
                           </div>
                         )}
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-lg border border-gray-100 dark:border-gray-700">
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
-                            Tap or drag pin to set location
-                          </p>
-                        </div>
                       </div>
 
-                      {/* Pick confirmation banner */}
                       {showPickConfirmation && (
                         <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-950/30 rounded-2xl border border-orange-200 dark:border-orange-800">
                           <MapPin className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
@@ -740,7 +982,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                         </div>
                       )}
 
-                      {/* Apartment input (always shown below map) */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
                           Apartment / Flat{" "}
@@ -756,7 +997,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                         />
                       </div>
 
-                      {/* Label picker */}
                       <LabelPicker label={label} setLabel={setLabel} />
 
                       {error && (
@@ -766,7 +1006,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                         </div>
                       )}
 
-                      {/* Manual entry link */}
                       <button
                         type="button"
                         onClick={() => {
@@ -781,7 +1020,6 @@ const AddressSection: React.FC<AddressSectionProps> = (props) => {
                     </div>
                   )}
 
-                  {/* Manual mode */}
                   {!mapLoading && !isMapPaused && manualMode && (
                     <div className="space-y-4">
                       <button

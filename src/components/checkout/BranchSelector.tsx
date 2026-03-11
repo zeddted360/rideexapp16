@@ -28,7 +28,7 @@ const BranchSelector: React.FC<BranchSelectorProps> = ({
         Select Branch
       </h2>
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-        Choose your nearest pickup location
+       For faster delivery, please select the branch nearest to your delivery address
       </p>
     </div>
 

@@ -1,4 +1,4 @@
-// hooks/useUserMap.ts (final version)
+// hooks/useUserMap.ts
 import { useEffect, useRef } from "react";
 import { useGlobalMapControl } from "./useGlobalMapControl";
 
@@ -11,21 +11,17 @@ export function useUserMap(
   const { isPaused: isMapPaused, loading: pauseLoading } =
     useGlobalMapControl();
 
-
   const mapRef = useRef<google.maps.Map | null>(null);
-  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(
-    null
-  );
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
 
   useEffect(() => {
-    // Wait for pause status
     if (pauseLoading || isMapPaused === null) return;
 
     const mapDiv = document.getElementById("user-location-map");
     if (!mapDiv) return;
 
-    // If globally paused → show message, no map
     if (isMapPaused) {
       mapDiv.innerHTML = `
         <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111;color:white;text-align:center;padding:20px;">
@@ -36,7 +32,6 @@ export function useUserMap(
       return;
     }
 
-    // Normal map initialization (only if not paused)
     if (!googleMapsApiKey || !window.google?.maps) return;
 
     const center = userLocation || { lat: 5.47631, lng: 7.025853 };
@@ -51,6 +46,11 @@ export function useUserMap(
 
     geocoderRef.current = new window.google.maps.Geocoder();
 
+    // PlacesService needs a live map instance
+    placesServiceRef.current = new window.google.maps.places.PlacesService(
+      mapRef.current
+    );
+
     markerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
       position: center,
       map: mapRef.current,
@@ -58,33 +58,133 @@ export function useUserMap(
       gmpDraggable: true,
     });
 
-    // All interactive features only when not paused
-    mapRef.current.addListener("click", (e: google.maps.MapMouseEvent) => {
-      if (e.latLng && geocoderRef.current && markerRef.current) {
-        markerRef.current.position = e.latLng;
-        geocoderRef.current.geocode(
-          { location: e.latLng },
-          (results, status) => {
-            if (status === "OK" && results?.[0]) {
-              onNewAddressPicked(results[0].formatted_address);
+    // Haversine distance in metres between two LatLng points
+    const haversineMetres = (
+      a: google.maps.LatLng,
+      b: google.maps.LatLng
+    ): number => {
+      const R = 6371000;
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat() - a.lat());
+      const dLng = toRad(b.lng() - a.lng());
+      const sin2 =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(a.lat())) *
+          Math.cos(toRad(b.lat())) *
+          Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(sin2));
+    };
+
+    // Build a readable address from a Places result.
+   
+    const placeToAddress = (place: google.maps.places.PlaceResult): string => {
+      const parts: string[] = [];
+      if (place.name) parts.push(place.name);
+      if (place.vicinity && place.vicinity !== place.name)
+        parts.push(place.vicinity);
+      return parts.join(", ");
+    };
+
+    // Pick the most precise result from geocoder results
+    const pickBestGeocoderResult = (
+      results: google.maps.GeocoderResult[]
+    ): string => {
+      const priority = [
+        "street_address",
+        "premise",
+        "subpremise",
+        "establishment",
+        "route",
+      ];
+      const filtered = results.filter((r) => !r.types.includes("plus_code"));
+      const pool = filtered.length > 0 ? filtered : results;
+      for (const type of priority) {
+        const match = pool.find((r) => r.types.includes(type));
+        if (match) return match.formatted_address;
+      }
+      return pool[0].formatted_address;
+    };
+
+    // Main resolver: Places nearbySearch → geocoder fallback
+   
+    const resolveAddress = (latLng: google.maps.LatLng) => {
+      if (!placesServiceRef.current || !geocoderRef.current) return;
+
+      placesServiceRef.current.nearbySearch(
+        { location: latLng, radius: 40 },
+        (results, status) => {
+          if (
+            status === google.maps.places.PlacesServiceStatus.OK &&
+            results &&
+            results.length > 0
+          ) {
+            // Pick the closest result to the exact click point
+            const closest = results.reduce((best, candidate) => {
+              const cLoc = candidate.geometry?.location;
+              const bLoc = best.geometry?.location;
+              if (!cLoc) return best;
+              if (!bLoc) return candidate;
+              return haversineMetres(latLng, cLoc) <
+                haversineMetres(latLng, bLoc)
+                ? candidate
+                : best;
+            });
+
+            const closestLoc = closest.geometry?.location;
+            const distM = closestLoc
+              ? haversineMetres(latLng, closestLoc)
+              : Infinity;
+
+            if (distM <= 40 && closest.name) {
+              onNewAddressPicked(placeToAddress(closest));
+              return;
             }
           }
-        );
+
+          // No POI found nearby — fall back to street-level reverse geocoding
+          geocoderRef.current!.geocode(
+            { location: latLng },
+            (gResults, gStatus) => {
+              if (gStatus === "OK" && gResults && gResults.length > 0) {
+                onNewAddressPicked(pickBestGeocoderResult(gResults));
+              }
+            }
+          );
+        }
+      );
+    };
+
+    // Normalise AdvancedMarkerElement.position to LatLng
+    const toLatLng = (
+      raw: google.maps.LatLng | google.maps.LatLngLiteral | null | undefined
+    ): google.maps.LatLng | null => {
+      if (!raw) return null;
+      if (raw instanceof google.maps.LatLng) return raw;
+      return new google.maps.LatLng(
+        (raw as google.maps.LatLngLiteral).lat,
+        (raw as google.maps.LatLngLiteral).lng
+      );
+    };
+
+    // Map click
+    mapRef.current.addListener("click", (e: google.maps.MapMouseEvent) => {
+      if (e.latLng && markerRef.current) {
+        markerRef.current.position = e.latLng;
+        resolveAddress(e.latLng);
       }
     });
 
+    // Marker drag end
     markerRef.current.addListener("dragend", () => {
-      if (markerRef.current?.position && geocoderRef.current) {
-        const pos = markerRef.current.position;
-        geocoderRef.current.geocode({ location: pos }, (results, status) => {
-          if (status === "OK" && results?.[0]) {
-            onNewAddressPicked(results[0].formatted_address);
-          }
-        });
-      }
+      const latLng = toLatLng(
+        markerRef.current?.position as
+          | google.maps.LatLng
+          | google.maps.LatLngLiteral
+      );
+      if (latLng) resolveAddress(latLng);
     });
 
-    // Geocode address if provided
+    // Pan map to a pre-existing saved address
     if (address && geocoderRef.current) {
       geocoderRef.current.geocode(
         { address, componentRestrictions: { country: "ng" } },
@@ -110,6 +210,7 @@ export function useUserMap(
       mapRef.current = null;
       markerRef.current = null;
       geocoderRef.current = null;
+      placesServiceRef.current = null;
     };
   }, [
     userLocation,

@@ -3,29 +3,36 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const origins = searchParams.get('origins');
-    const destinations = searchParams.get('destinations');
     const key = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
 
-    if (!origins || !destinations || !key) {
+    if (!key) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
-        { status: 400 }
+        { error: "Google API key is missing" },
+        { status: 500 },
       );
     }
 
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(origins)}&destinations=${encodeURIComponent(destinations)}&key=${key}&units=metric`;
+    const params = new URLSearchParams(searchParams);
+    params.set("key", key);
+
+    if (!params.has("units")) params.set("units", "metric");
+
+    // TWO_WHEELER matches motorcycle/rider routing on Google Maps
+    // This is why your distances were longer — driving uses car roads
+    params.set("mode", "driving");
+    params.set("vehicle_type", "TWO_WHEELER"); // ← key addition
+
+    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`;
 
     const response = await fetch(url);
     const data = await response.json();
 
-  
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Distance Matrix API error:', error);
+    console.error("Distance Matrix API error:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch distance matrix data' },
-      { status: 500 }
+      { error: "Failed to fetch distance matrix data" },
+      { status: 500 },
     );
   }
-} 
+}

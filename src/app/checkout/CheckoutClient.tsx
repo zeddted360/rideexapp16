@@ -97,9 +97,8 @@ export default function CheckoutClient() {
   const [selectedPlace, setSelectedPlace] =
     useState<google.maps.places.PlaceResult | null>(null);
   const [lastPickedAddress, setLastPickedAddress] = useState("");
-  const [restaurantAddresses, setRestaurantAddresses] = useState<{
-    [key: string]: string[];
-  }>({});
+
+ 
   const [restaurant, setRestaurant] = useState<IRestaurantFetched | null>(null);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
@@ -162,6 +161,28 @@ export default function CheckoutClient() {
     () => branches.find((b) => b.id === selectedBranch),
     [selectedBranch],
   );
+ 
+  const restaurantOriginAddress = useMemo(() => {
+    if (!restaurant) return "";
+
+    let addr = "";
+    if (
+      Array.isArray(restaurant.addresses) &&
+      restaurant.addresses.length > 0
+    ) {
+      addr = restaurant.addresses[0] || "";
+    }
+    else if (typeof (restaurant as any).address === "string") {
+      addr = (restaurant as any).address;
+    }
+
+    addr = addr.trim().replace(/,\s*$/, ""); // remove trailing comma
+
+    if (addr && !/owerri/i.test(addr)) addr += ", Owerri, Imo";
+    if (!/nigeria/i.test(addr)) addr += ", Nigeria";
+    
+    return addr;
+  }, [restaurant]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedAddress(address), 500);
@@ -257,7 +278,7 @@ export default function CheckoutClient() {
           restaurantId,
         )) as IRestaurantFetched;
         setRestaurant(doc);
-        setRestaurantAddresses({ [restaurantId]: doc.addresses || [] });
+        // setRestaurantAddresses({ [restaurantId]: doc.addresses || [] });
       } catch (err) {
         console.error(`Failed to fetch restaurant ${restaurantId}:`, err);
       }
@@ -278,7 +299,7 @@ export default function CheckoutClient() {
         setIsCalculatingFee(false);
         return;
       }
-      if (!debouncedAddress.trim() || !selectedBranchData) {
+      if (!debouncedAddress.trim() || !restaurantOriginAddress) {
         setDeliveryFee(800);
         setDeliveryDistance("");
         setDeliveryDuration("");
@@ -286,30 +307,49 @@ export default function CheckoutClient() {
       }
       setIsCalculatingFee(true);
       try {
-        const origin = encodeURIComponent(
-          selectedBranchData.address + ", Nigeria",
-        );
-        const destination = encodeURIComponent(debouncedAddress + ", Nigeria");
-        const res = await fetch(
-          `/api/distance-matrix?origins=${origin}&destinations=${destination}`,
-        );
+        const originStr = restaurantOriginAddress;
+        if (!originStr) throw new Error("Restaurant address missing");
+
+        const params = new URLSearchParams({
+          origins: originStr,
+          destinations: debouncedAddress,
+          units: "metric",
+         
+        });
+        const res = await fetch(`/api/distance-matrix?${params}`);
         const data = await res.json();
-        if (data.status !== "OK" || !data.rows[0]?.elements[0]?.distance)
-          throw new Error("Invalid distance");
-        const distanceMeters = data.rows[0].elements[0].distance.value;
-        const distanceText = data.rows[0].elements[0].distance.text;
-        const durationText = data.rows[0].elements[0].duration.text;
-        const feeResult = calculateDeliveryFeeSimple(distanceMeters, true);
+
+        console.log("Distance Matrix Response:", data);
+
+        const element = data.rows?.[0]?.elements?.[0];
+
+        if (!element || element.status !== "OK" || !element.distance) {
+          throw new Error(`Geocoding failed: ${element?.status || "NO_DATA"}`);
+        }
+
+        const distanceText = element.distance.text;
+        let durationText =
+          element.duration_in_traffic?.text || element.duration.text;
+        
+        const feeResult = calculateDeliveryFeeSimple(
+          element.distance.value,
+          true,
+        );
+
         if (!feeResult.isDeliverable) {
           setShowDistanceExceededModal(true);
           setDeliveryFee(0);
         } else setDeliveryFee(feeResult.deliveryFee);
+
         setDeliveryDistance(distanceText);
         setDeliveryDuration(durationText);
       } catch (error) {
         console.error("Fee error:", error);
-        handleError("Using estimated delivery fee");
-        setDeliveryFee(2000);
+        console.log("Restaurant address that failed:", restaurantOriginAddress);
+        handleError("Could not calculate exact fee. Using estimate.");
+        setDeliveryFee(1800);
+        setDeliveryDistance("≈ 3–6 km");
+        setDeliveryDuration("10–15 mins");
       } finally {
         setIsCalculatingFee(false);
       }
@@ -317,7 +357,7 @@ export default function CheckoutClient() {
     calculateFee();
   }, [
     debouncedAddress,
-    selectedBranchData,
+    restaurantOriginAddress,
     handleError,
     isMapPaused,
     mapLoading,
@@ -979,7 +1019,7 @@ export default function CheckoutClient() {
         </div>
       </div>
 
-      {/* ── Map pick confirmation modal ── */}
+      {/* ── Map pick confirmation modal — always centered ── */}
       <AnimatePresence>
         {showMapPickConfirmation && (
           <motion.div
@@ -987,26 +1027,26 @@ export default function CheckoutClient() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
             style={{
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: "rgba(0,0,0,0.55)",
               backdropFilter: "blur(6px)",
             }}
             onClick={() => !isOrderLoading && handleMapPickConfirmation(false)}
           >
             <motion.div
-              initial={{ y: 32, opacity: 0, scale: 0.97 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 32, opacity: 0, scale: 0.97 }}
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="bg-white dark:bg-gray-900 w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+              className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600" />
               <div className="p-6 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-950/50 flex items-center justify-center flex-shrink-0">
                       <MapPin className="w-5 h-5 text-orange-500" />
                     </div>
                     <div>
@@ -1020,7 +1060,7 @@ export default function CheckoutClient() {
                   </div>
                   <button
                     onClick={() => handleMapPickConfirmation(false)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
                   >
                     <X className="w-3.5 h-3.5 text-gray-500" />
                   </button>
@@ -1037,13 +1077,13 @@ export default function CheckoutClient() {
                   <Button
                     variant="outline"
                     onClick={() => handleMapPickConfirmation(false)}
-                    className="flex-1 h-11 rounded-xl text-sm font-semibold border-gray-200 dark:border-gray-700"
+                    className="flex-1 h-12 rounded-xl text-sm font-semibold border-gray-200 dark:border-gray-700"
                   >
                     Choose another
                   </Button>
                   <button
                     onClick={() => handleMapPickConfirmation(true)}
-                    className="flex-1 h-11 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 h-12 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Use address
