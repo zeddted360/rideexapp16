@@ -37,7 +37,7 @@ export default function RootLayout({
       <body className={`${roboto.className} min-h-screen flex flex-col`}>
         <Wrapper>
           <GlobalDataLoader />
-          <Offline />
+          {/* <Offline /> */}
           {children}
           <ChatWidget />
         </Wrapper>
@@ -45,3 +45,4 @@ export default function RootLayout({
     </html>
   );
 }
+git add .
