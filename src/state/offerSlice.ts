@@ -75,7 +75,9 @@ export const listAsyncPromoOfferItems = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       promoOfferCollectionId,
-      [Query.orderDesc("$createdAt")]
+      [
+        Query.limit(1000),
+        Query.orderDesc("$createdAt")]
     );
     return response.documents as unknown as IPromoOfferFetched[];
   } catch (error) {

@@ -70,7 +70,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
       {/* Validation hint */}
       {missingFields.length > 0 && (
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 mb-3">
-          <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700 dark:text-amber-400">
             Please add your{" "}
             <span className="font-semibold">{missingFields.join(" and ")}</span>{" "}
@@ -87,12 +87,12 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
           ${
             isDisabled
               ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed"
-              : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-px active:translate-y-0"
+              : "bg-linear-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-px active:translate-y-0"
           }`}
       >
         {/* Shimmer effect on hover */}
         {!isDisabled && (
-          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none" />
+          <span className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none" />
         )}
 
         <span className="flex items-center gap-2.5 relative">
@@ -122,7 +122,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
       {/* Inline error */}
       {error && (
         <div className="flex items-center gap-2 mt-2.5 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
           <p className="text-xs font-semibold text-red-600 dark:text-red-400">
             {error}
           </p>
@@ -137,7 +137,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+            className="fixed inset-0 z-9999 flex items-center justify-center p-4"
             style={{
               backgroundColor: "rgba(0,0,0,0.55)",
               backdropFilter: "blur(6px)",
@@ -153,7 +153,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal top accent */}
-              <div className="h-1 w-full bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600" />
+              <div className="h-1 w-full bg-linear-to-r from-orange-400 via-orange-500 to-orange-600" />
 
               <div className="p-6 space-y-5">
                 {/* Header */}
@@ -184,7 +184,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
                 {/* Delivery details */}
                 <div className="rounded-2xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <MapPin className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                    <MapPin className="w-4 h-4 text-orange-400 shrink-0" />
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
                         Delivering to
@@ -195,7 +195,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 px-4 py-3">
-                    <Phone className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                    <Phone className="w-4 h-4 text-orange-400 shrink-0" />
                     <div>
                       <p className="text-[11px] uppercase tracking-widest font-semibold text-gray-400 dark:text-gray-500">
                         Phone
@@ -240,7 +240,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
                 {/* Confirm error */}
                 {confirmError && (
                   <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900">
-                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                     <p className="text-xs font-semibold text-red-600 dark:text-red-400">
                       {confirmError}
                     </p>
@@ -260,7 +260,7 @@ const PlaceOrderButton: React.FC<PlaceOrderButtonProps> = ({
                   <button
                     onClick={handleConfirmOrder}
                     disabled={isOrderLoading}
-                    className="flex-1 h-12 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/25 disabled:opacity-60 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 h-12 rounded-xl font-bold text-sm text-white bg-linear-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md shadow-orange-500/25 disabled:opacity-60 transition-all flex items-center justify-center gap-2"
                   >
                     {isOrderLoading ? (
                       <>

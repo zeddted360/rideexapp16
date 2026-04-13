@@ -408,7 +408,7 @@ export default function Footer() {
                       alt={store.label}
                       width={22}
                       height={22}
-                      className="object-contain w-[22px] h-[22px]"
+                      className="object-contain w-5.5 h-5.5"
                     />
                     <div className="text-left">
                       <div className="text-[10px] text-gray-500 leading-none">
@@ -425,7 +425,7 @@ export default function Footer() {
 
             {/* Copyright + links */}
             <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500">
-              <p>© {new Date().getFullYear()} RideEx. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} Rideex Logistics and Freight Company Limited. All rights reserved.</p>
               <div className="flex items-center gap-1">
                 <span className="hidden sm:block w-1 h-1 rounded-full bg-gray-700" />
                 <Link

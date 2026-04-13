@@ -74,6 +74,7 @@ export const listAsyncFeaturedItems = createAsyncThunk<
 
     // Fetch all featured item documents
     const response = await databases.listDocuments(databaseId, featuredId, [
+      Query.limit(1000),
       Query.orderDesc("$createdAt"),
     ]);
     return response.documents as unknown as IFeaturedItemFetched[];

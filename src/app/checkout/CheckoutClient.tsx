@@ -345,7 +345,6 @@ export default function CheckoutClient() {
         setDeliveryDuration(durationText);
       } catch (error) {
         console.error("Fee error:", error);
-        console.log("Restaurant address that failed:", restaurantOriginAddress);
         handleError("Could not calculate exact fee. Using estimate.");
         setDeliveryFee(1800);
         setDeliveryDistance("≈ 3–6 km");
@@ -550,7 +549,8 @@ export default function CheckoutClient() {
     }
     if (paymentMethod === "cash" && subtotal < deliveryFee) {
       handleError(
-        "Order value must be at least equal to delivery fee amount.",
+        `Your order value must be at least equal to the delivery fee.\n
+        Please add more items to your cart to continue, or choose a different payment method.`,
         true,
       );
       return;

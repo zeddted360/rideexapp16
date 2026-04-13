@@ -88,7 +88,9 @@ export const listAsyncRestaurants = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       restaurantsCollectionId,
-      [Query.orderDesc("$createdAt")] 
+      [
+        Query.limit(1000),
+        Query.orderDesc("$createdAt")] 
     );
 
     // Parse schedule from string[] to object array

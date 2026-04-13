@@ -57,8 +57,9 @@ export const listAsyncDiscounts = createAsyncThunk<
       databaseId,
       discountsCollectionId,
       [
-        Query.orderDesc("validTo"), // Order by expiry descending
-        Query.equal("isActive", true), // Only active discounts
+        Query.limit(1000),
+        Query.orderDesc("validTo"), 
+        Query.equal("isActive", true), 
       ]
     );
 

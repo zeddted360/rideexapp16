@@ -78,7 +78,10 @@ export const listAsyncPopularItems = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       popularItemsCollectionId,
-      [Query.orderDesc("$createdAt")]
+      [
+        Query.limit(1000),
+        Query.orderDesc("$createdAt")
+      ]
     );
     return response.documents as unknown as IPopularItemFetched[];
   } catch (error) {

@@ -24,7 +24,9 @@ export const listAsyncUsers = createAsyncThunk(
       const response = await databases.listDocuments(
         databaseId,
         userCollectionId,
-        [Query.orderDesc("$createdAt")]
+        [
+          Query.limit(1000),
+          Query.orderDesc("$createdAt")]
       );
       return response.documents as unknown as IUserFectched[];
     } catch (error: any) {

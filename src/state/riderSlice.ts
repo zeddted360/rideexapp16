@@ -11,7 +11,7 @@ export const listAsyncRiders = createAsyncThunk(
       const response = await databases.listDocuments(
         databaseId,
         ridersCollectionId,
-        [Query.orderDesc("$createdAt"), Query.limit(100)]
+        [Query.orderDesc("$createdAt"), Query.limit(100)],
       );
       return response.documents as unknown as  IRidersFetched[];
     } catch (error: any) {

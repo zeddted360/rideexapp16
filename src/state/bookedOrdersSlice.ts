@@ -28,7 +28,7 @@ export const fetchBookedOrders = createAsyncThunk<
     const response = await databases.listDocuments(
       databaseId,
       bookedOrdersCollectionId,
-      [Query.orderDesc("createdAt")]
+      [Query.limit(1000), Query.orderDesc("createdAt")],
     );
     return response.documents as unknown as IBookedOrderFetched[];
   } catch (error) {

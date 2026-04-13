@@ -11,7 +11,9 @@ export const listAsyncVendors = createAsyncThunk(
       const response = await databases.listDocuments(
         databaseId,
         vendorsCollectionId,
-        [Query.orderDesc("$createdAt"), Query.limit(100)]
+        [
+          Query.orderDesc("$createdAt"), Query.limit(1000)
+        ]
       );
       return response.documents as unknown as  IVendorFetched[];
     } catch (error: any) {

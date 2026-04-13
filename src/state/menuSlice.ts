@@ -85,7 +85,6 @@ export const listAsyncMenusItem = createAsyncThunk<
       [
         Query.limit(1000),
         Query.orderDesc("$createdAt"),
-        Query.equal("isApproved", true),
       ],
     );
 

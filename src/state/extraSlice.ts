@@ -37,7 +37,11 @@ export const listAsyncExtras = createAsyncThunk<
     const response = await databases.listDocuments<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
-      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")],
+      [
+        Query.limit(1000),
+        Query.equal("vendorId", vendorId),
+        Query.orderDesc("$createdAt")
+      ],
     );
     return response.documents;
   } catch (error) {
@@ -57,7 +61,7 @@ export const listAllAsyncExtras = createAsyncThunk<
     const response = await databases.listDocuments<IFetchedExtras>(
       databaseId,
       extrasCollectionId,
-      [Query.limit(100), Query.orderDesc("$createdAt")],
+      [Query.limit(1000), Query.orderDesc("$createdAt")],
     );
     return response.documents;
   } catch (error) {
@@ -227,7 +231,10 @@ export const listAsyncPacks = createAsyncThunk<
     const response = await databases.listDocuments<IPackFetched>(
       databaseId,
       packsCollectionId,
-      [Query.equal("vendorId", vendorId), Query.orderDesc("$createdAt")],
+      [
+        Query.limit(1000),
+        Query.equal("vendorId", vendorId),
+        Query.orderDesc("$createdAt")],
     );
     return response.documents;
   } catch (error) {
